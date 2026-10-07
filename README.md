@@ -43,15 +43,26 @@ TradingView Pine Script v6 indicator: `MarketPhaseDetector_v2.4.pine`.
 Setting MACD/OBV weights to 0 and disabling the confirmation toggles returns
 behaviour close to v2.3.
 
-## Plot limit fix (runtime error 10140)
+## Plot limit fix ("too many plots, limit is 64")
 
-Pine counts every value returned by `request.security()` toward the 64-plot
-limit. The primary and local MTF calls each returned the full 26-value engine
-tuple (52 plots), which together with the script's own plots, shapes and
-alert conditions exceeded 64. Each timeframe now returns only the fields the
-bias, smart alerts and dashboard use (phase, trend, acc/dist pressure,
-SOS/SOW, MACD/OBV bias and divergence state), packed into two integers by
-`f_mtfPacked()` and decoded with `f_mtfUnpack()`. Behaviour is unchanged.
+TradingView counts every `plot*()`, `bgcolor()` and `alertcondition()` call
+toward a 64-plot limit, plus one extra count for each colour argument that is
+not a compile-time constant (input colours included). v2.4 used about 75:
+
+| Source | Count |
+|---|---|
+| 16 `plotshape()` markers (input `color` / `textcolor`) | 40 |
+| 20 `alertcondition()` | 20 |
+| 4 EMA / range `plot()` with input colours | 8 |
+| 6 Data Window `plot()` | 6 |
+| `bgcolor()` | 1 |
+
+The Spring / UTAD / SOS / SOW / sweep, MACD / OBV divergence and phase-change
+markers are now drawn with labels (`f_marker()`), which do not count toward
+the limit. The script now uses about 36 plot counts. Markers look the same
+and use the same inputs; only the most recent 500 labels stay on the chart.
+`request.security()` has its own separate limit; the MTF calls now return
+only the 10 fields the bias, alerts and dashboard use.
 
 ## Phase hold during confirmation
 

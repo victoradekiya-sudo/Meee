@@ -2005,211 +2005,95 @@ plot(obvBias, "OBV Bias (-2..2)", display=display.data_window)
 
 
 // ============================================================================
+// CHART MARKERS
+//
+// Events, divergences and phase changes are drawn with labels instead of
+// plotshape(). plotshape() counts toward TradingView's 64-plot limit, and
+// each input colour (color / textcolor) adds one more count, so the 16
+// markers alone used 40 plot counts. Labels do not count toward that limit
+// (max_labels_count=500 keeps the most recent 500 on the chart).
+// ============================================================================
+
+f_marker(bool show, int x, string txt, bool above, color bg, color fg, string sz) =>
+    label lbl = na
+
+    if show
+        lbl := label.new(
+             x,
+             close,
+             txt,
+             xloc=xloc.bar_index,
+             yloc=above ? yloc.abovebar : yloc.belowbar,
+             style=above ? label.style_label_down : label.style_label_up,
+             color=bg,
+             textcolor=fg,
+             size=sz
+         )
+
+    lbl
+
+
+f_phaseTag(int p) =>
+    switch p
+        1 => "ACC"
+        2 => "MARKUP"
+        3 => "RE-ACC"
+        4 => "DIST"
+        5 => "MARKDOWN"
+        6 => "RE-DIST"
+        => ""
+
+
+// ----------------------------------------------------------------------------
 // WYCKOFF EVENTS
-// ============================================================================
+// ----------------------------------------------------------------------------
 
-plotshape(
-     showSpring and plotSpring,
-     title="Confirmed Spring",
-     text="SPRING",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=springColor,
-     textcolor=eventTextColor,
-     size=size.tiny
-)
-
-plotshape(
-     showUTAD and plotUTAD,
-     title="Confirmed UTAD",
-     text="UTAD",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=utadColor,
-     textcolor=eventTextColor,
-     size=size.tiny
-)
-
-plotshape(
-     showSOS and plotSOS,
-     title="SOS",
-     text="SOS",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=sosColor,
-     textcolor=eventTextColor,
-     size=size.tiny
-)
-
-plotshape(
-     showSOW and plotSOW,
-     title="SOW",
-     text="SOW",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=sowColor,
-     textcolor=eventTextColor,
-     size=size.tiny
-)
-
-plotshape(
-     showSweeps and plotSweepLow,
-     title="Sweep Low",
-     text="SWEEP ↓",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=sweepLowColor,
-     textcolor=eventTextColor,
-     size=size.tiny
-)
-
-plotshape(
-     showSweeps and plotSweepHigh,
-     title="Sweep High",
-     text="SWEEP ↑",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=sweepHighColor,
-     textcolor=eventTextColor,
-     size=size.tiny
-)
+f_marker(showSpring and plotSpring, bar_index, "SPRING", false, springColor, eventTextColor, size.tiny)
+f_marker(showUTAD and plotUTAD, bar_index, "UTAD", true, utadColor, eventTextColor, size.tiny)
+f_marker(showSOS and plotSOS, bar_index, "SOS", false, sosColor, eventTextColor, size.tiny)
+f_marker(showSOW and plotSOW, bar_index, "SOW", true, sowColor, eventTextColor, size.tiny)
+f_marker(showSweeps and plotSweepLow, bar_index, "SWEEP ↓", false, sweepLowColor, eventTextColor, size.tiny)
+f_marker(showSweeps and plotSweepHigh, bar_index, "SWEEP ↑", true, sweepHighColor, eventTextColor, size.tiny)
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // DIVERGENCES
 //
-// Drawn back on the pivot bar (offset) — they are confirmed and alerted
+// Drawn back on the pivot bar — they are confirmed and alerted
 // divPivotLen bars later.
-// ============================================================================
+// ----------------------------------------------------------------------------
 
-plotshape(
-     showDivergences and macdBullDiv,
-     title="MACD Bullish Divergence",
-     text="MACD DIV",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=bullDivColor,
-     textcolor=eventTextColor,
-     size=size.tiny,
-     offset=-divPivotLen
-)
+divBar = bar_index - divPivotLen
 
-plotshape(
-     showDivergences and macdBearDiv,
-     title="MACD Bearish Divergence",
-     text="MACD DIV",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=bearDivColor,
-     textcolor=eventTextColor,
-     size=size.tiny,
-     offset=-divPivotLen
-)
-
-plotshape(
-     showDivergences and obvBullDiv,
-     title="OBV Bullish Divergence",
-     text="OBV DIV",
-     style=shape.triangleup,
-     location=location.belowbar,
-     color=bullDivColor,
-     size=size.tiny,
-     offset=-divPivotLen
-)
-
-plotshape(
-     showDivergences and obvBearDiv,
-     title="OBV Bearish Divergence",
-     text="OBV DIV",
-     style=shape.triangledown,
-     location=location.abovebar,
-     color=bearDivColor,
-     size=size.tiny,
-     offset=-divPivotLen
-)
+f_marker(showDivergences and macdBullDiv, divBar, "MACD DIV", false, bullDivColor, eventTextColor, size.tiny)
+f_marker(showDivergences and macdBearDiv, divBar, "MACD DIV", true, bearDivColor, eventTextColor, size.tiny)
+f_marker(showDivergences and obvBullDiv, divBar, "OBV DIV", false, bullDivColor, eventTextColor, size.tiny)
+f_marker(showDivergences and obvBearDiv, divBar, "OBV DIV", true, bearDivColor, eventTextColor, size.tiny)
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 // PHASE LABELS
-// ============================================================================
+// ----------------------------------------------------------------------------
 
-plotshape(
-     showPhaseLabels and phaseChanged and phase == 1,
-     title="Accumulation",
-     text="ACC",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=colorAccumulation,
-     textcolor=color.white
-)
-
-plotshape(
-     showPhaseLabels and phaseChanged and phase == 2,
-     title="Markup",
-     text="MARKUP",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=colorMarkup,
-     textcolor=color.white
-)
-
-plotshape(
-     showPhaseLabels and phaseChanged and phase == 3,
-     title="Re-Accumulation",
-     text="RE-ACC",
-     style=shape.labelup,
-     location=location.belowbar,
-     color=colorReAccumulation,
-     textcolor=color.white
-)
-
-plotshape(
-     showPhaseLabels and phaseChanged and phase == 4,
-     title="Distribution",
-     text="DIST",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=colorDistribution,
-     textcolor=color.white
-)
-
-plotshape(
-     showPhaseLabels and phaseChanged and phase == 5,
-     title="Markdown",
-     text="MARKDOWN",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=colorMarkdown,
-     textcolor=color.white
-)
-
-plotshape(
-     showPhaseLabels and phaseChanged and phase == 6,
-     title="Re-Distribution",
-     text="RE-DIST",
-     style=shape.labeldown,
-     location=location.abovebar,
-     color=colorReDistribution,
-     textcolor=color.white
-)
+f_marker(
+     showPhaseLabels and phaseChanged and phase != 0,
+     bar_index,
+     f_phaseTag(phase),
+     phase >= 4,
+     phaseColor,
+     color.white,
+     size.small
+ )
 
 
 // ============================================================================
-// MTF PACKING
+// MTF ENGINE
 //
-// Every value returned by request.security() counts toward Pine's 64-plot
-// limit. Returning the full 26-value engine tuple from two timeframes used
-// 52 plots on its own (runtime error 10140), so each timeframe now sends
-// only the fields the bias, smart alerts and dashboard use, packed into
-// two integers.
-//
-// scores = (trend + 100) + acc * 1000 + dist * 1000000
-// flags  = phase + (macdBias + 2) * 10 + (obvBias + 2) * 100 +
-//          (macdDiv + 1) * 1000 + (obvDiv + 1) * 10000 +
-//          sos * 100000 + sow * 1000000
+// Each timeframe returns only the fields the bias, smart alerts and
+// dashboard use.
 // ============================================================================
 
-f_mtfPacked() =>
+f_mtf() =>
     [
          p,
          t,
@@ -2239,54 +2123,12 @@ f_mtfPacked() =>
          x16
     ] = f_engine()
 
-    int scores =
-         (t + 100) +
-         acc * 1000 +
-         dist * 1000000
-
-    int flags =
-         p +
-         (mBias + 2) * 10 +
-         (oBias + 2) * 100 +
-         (mDiv + 1) * 1000 +
-         (oDiv + 1) * 10000 +
-         sosI * 100000 +
-         sowI * 1000000
-
-    [scores, flags]
-
-
-f_digit(int packed, int divisor, int base) =>
-    math.floor(packed / divisor) % base
-
-
-// Returns [phase, trend, acc, dist, sos, sow, macdBias, obvBias, macdDiv, obvDiv]
-f_mtfUnpack(int scores, int flags) =>
-    [
-         f_digit(flags, 1, 10),
-         f_digit(scores, 1, 1000) - 100,
-         f_digit(scores, 1000, 1000),
-         f_digit(scores, 1000000, 1000),
-         f_digit(flags, 100000, 10),
-         f_digit(flags, 1000000, 10),
-         f_digit(flags, 10, 10) - 2,
-         f_digit(flags, 100, 10) - 2,
-         f_digit(flags, 1000, 10) - 1,
-         f_digit(flags, 10000, 10) - 1
-    ]
+    [p, t, acc, dist, sosI, sowI, mBias, oBias, mDiv, oDiv]
 
 
 // ============================================================================
 // MTF PRIMARY
 // ============================================================================
-
-[primaryScores, primaryFlags] = request.security(
-     syminfo.tickerid,
-     higherTF,
-     f_mtfPacked(),
-     gaps=barmerge.gaps_off,
-     lookahead=barmerge.lookahead_off
-)
 
 [
      primaryPhase,
@@ -2299,20 +2141,18 @@ f_mtfUnpack(int scores, int flags) =>
      primaryOBVBias,
      primaryMACDDiv,
      primaryOBVDiv
-] = f_mtfUnpack(primaryScores, primaryFlags)
+] = request.security(
+     syminfo.tickerid,
+     higherTF,
+     f_mtf(),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
 
 
 // ============================================================================
 // MTF LOCAL
 // ============================================================================
-
-[localScores, localFlags] = request.security(
-     syminfo.tickerid,
-     localTF,
-     f_mtfPacked(),
-     gaps=barmerge.gaps_off,
-     lookahead=barmerge.lookahead_off
-)
 
 [
      localPhase,
@@ -2325,7 +2165,13 @@ f_mtfUnpack(int scores, int flags) =>
      localOBVBias,
      localMACDDiv,
      localOBVDiv
-] = f_mtfUnpack(localScores, localFlags)
+] = request.security(
+     syminfo.tickerid,
+     localTF,
+     f_mtf(),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
 
 
 // ============================================================================
