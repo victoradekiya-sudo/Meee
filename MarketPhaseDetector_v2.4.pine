@@ -2192,83 +2192,137 @@ plotshape(
 
 
 // ============================================================================
+// MTF PACKING
+//
+// Every value returned by request.security() counts toward Pine's 64-plot
+// limit. Returning the full 26-value engine tuple from two timeframes used
+// 52 plots on its own (runtime error 10140), so each timeframe now sends
+// only the fields the bias, smart alerts and dashboard use, packed into
+// two integers.
+//
+// scores = (trend + 100) + acc * 1000 + dist * 1000000
+// flags  = phase + (macdBias + 2) * 10 + (obvBias + 2) * 100 +
+//          (macdDiv + 1) * 1000 + (obvDiv + 1) * 10000 +
+//          sos * 100000 + sow * 1000000
+// ============================================================================
+
+f_mtfPacked() =>
+    [
+         p,
+         t,
+         acc,
+         dist,
+         x1,
+         x2,
+         x3,
+         x4,
+         x5,
+         x6,
+         x7,
+         sosI,
+         sowI,
+         x8,
+         x9,
+         x10,
+         x11,
+         x12,
+         mBias,
+         oBias,
+         mDiv,
+         oDiv,
+         x13,
+         x14,
+         x15,
+         x16
+    ] = f_engine()
+
+    int scores =
+         (t + 100) +
+         acc * 1000 +
+         dist * 1000000
+
+    int flags =
+         p +
+         (mBias + 2) * 10 +
+         (oBias + 2) * 100 +
+         (mDiv + 1) * 1000 +
+         (oDiv + 1) * 10000 +
+         sosI * 100000 +
+         sowI * 1000000
+
+    [scores, flags]
+
+
+f_digit(int packed, int divisor, int base) =>
+    math.floor(packed / divisor) % base
+
+
+// Returns [phase, trend, acc, dist, sos, sow, macdBias, obvBias, macdDiv, obvDiv]
+f_mtfUnpack(int scores, int flags) =>
+    [
+         f_digit(flags, 1, 10),
+         f_digit(scores, 1, 1000) - 100,
+         f_digit(scores, 1000, 1000),
+         f_digit(scores, 1000000, 1000),
+         f_digit(flags, 100000, 10),
+         f_digit(flags, 1000000, 10),
+         f_digit(flags, 10, 10) - 2,
+         f_digit(flags, 100, 10) - 2,
+         f_digit(flags, 1000, 10) - 1,
+         f_digit(flags, 10000, 10) - 1
+    ]
+
+
+// ============================================================================
 // MTF PRIMARY
 // ============================================================================
+
+[primaryScores, primaryFlags] = request.security(
+     syminfo.tickerid,
+     higherTF,
+     f_mtfPacked(),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
 
 [
      primaryPhase,
      primaryTrend,
      primaryAcc,
      primaryDist,
-     primaryCMF,
-     primaryRVOL,
-     primaryRange,
-     primarySweepLow,
-     primarySweepHigh,
-     primarySpring,
-     primaryUTAD,
      primarySOS,
      primarySOW,
-     primaryFast,
-     primarySlow,
-     primaryRangeHigh,
-     primaryRangeLow,
-     primaryMACDHist,
      primaryMACDBias,
      primaryOBVBias,
      primaryMACDDiv,
-     primaryOBVDiv,
-     primaryMACDBullDiv,
-     primaryMACDBearDiv,
-     primaryOBVBullDiv,
-     primaryOBVBearDiv
-] = request.security(
-     syminfo.tickerid,
-     higherTF,
-     f_engine(),
-     gaps=barmerge.gaps_off,
-     lookahead=barmerge.lookahead_off
-)
+     primaryOBVDiv
+] = f_mtfUnpack(primaryScores, primaryFlags)
 
 
 // ============================================================================
 // MTF LOCAL
 // ============================================================================
 
+[localScores, localFlags] = request.security(
+     syminfo.tickerid,
+     localTF,
+     f_mtfPacked(),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
 [
      localPhase,
      localTrend,
      localAcc,
      localDist,
-     localCMF,
-     localRVOL,
-     localRange,
-     localSweepLow,
-     localSweepHigh,
-     localSpring,
-     localUTAD,
      localSOS,
      localSOW,
-     localFast,
-     localSlow,
-     localRangeHigh,
-     localRangeLow,
-     localMACDHist,
      localMACDBias,
      localOBVBias,
      localMACDDiv,
-     localOBVDiv,
-     localMACDBullDiv,
-     localMACDBearDiv,
-     localOBVBullDiv,
-     localOBVBearDiv
-] = request.security(
-     syminfo.tickerid,
-     localTF,
-     f_engine(),
-     gaps=barmerge.gaps_off,
-     lookahead=barmerge.lookahead_off
-)
+     localOBVDiv
+] = f_mtfUnpack(localScores, localFlags)
 
 
 // ============================================================================

@@ -42,3 +42,13 @@ TradingView Pine Script v6 indicator: `MarketPhaseDetector_v2.4.pine`.
 
 Setting MACD/OBV weights to 0 and disabling the confirmation toggles returns
 behaviour close to v2.3.
+
+## Plot limit fix (runtime error 10140)
+
+Pine counts every value returned by `request.security()` toward the 64-plot
+limit. The primary and local MTF calls each returned the full 26-value engine
+tuple (52 plots), which together with the script's own plots, shapes and
+alert conditions exceeded 64. Each timeframe now returns only the fields the
+bias, smart alerts and dashboard use (phase, trend, acc/dist pressure,
+SOS/SOW, MACD/OBV bias and divergence state), packed into two integers by
+`f_mtfPacked()` and decoded with `f_mtfUnpack()`. Behaviour is unchanged.
