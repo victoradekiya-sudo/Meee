@@ -712,7 +712,7 @@ smartAlertConfirm = input.bool(
 groupDashboard = "14 — Dashboard"
 
 dashboardPositionInput = input.string(
-     "Bottom Right",
+     "Top Right",
      "Dashboard Position",
      options=["Top Left", "Top Right", "Bottom Left", "Bottom Right"],
      group=groupDashboard
@@ -768,7 +768,7 @@ dashboardTextSizeInput = input.string(
 // DASHBOARD HELPERS
 // ============================================================================
 
-dashboardPosition = position.bottom_right
+dashboardPosition = position.top_right
 
 if dashboardPositionInput == "Top Left"
     dashboardPosition := position.top_left
@@ -1940,7 +1940,8 @@ else if backgroundMode == "Regime"
 bgcolor(
      backgroundMode == "Off" ?
      na :
-     backgroundColor
+     backgroundColor,
+     force_overlay=true
 )
 
 
@@ -1952,14 +1953,16 @@ plot(
      showEMA ? emaFast : na,
      "Fast EMA",
      color=fastEMAColor,
-     linewidth=fastEMAWidth
+     linewidth=fastEMAWidth,
+     force_overlay=true
 )
 
 plot(
      showEMA ? emaSlow : na,
      "Slow EMA",
      color=slowEMAColor,
-     linewidth=slowEMAWidth
+     linewidth=slowEMAWidth,
+     force_overlay=true
 )
 
 
@@ -1976,7 +1979,8 @@ plot(
          rangeHighColor,
          rangeTransparency
      ),
-     style=plot.style_linebr
+     style=plot.style_linebr,
+     force_overlay=true
 )
 
 plot(
@@ -1988,7 +1992,8 @@ plot(
          rangeLowColor,
          rangeTransparency
      ),
-     style=plot.style_linebr
+     style=plot.style_linebr,
+     force_overlay=true
 )
 
 
@@ -2027,7 +2032,8 @@ f_marker(bool show, int x, string txt, bool above, color bg, color fg, string sz
              style=above ? label.style_label_down : label.style_label_up,
              color=bg,
              textcolor=fg,
-             size=sz
+             size=sz,
+             force_overlay=true
          )
 
     lbl
@@ -2495,7 +2501,8 @@ var table dashboard =
          frame_color=dashboardBorderColor,
          frame_width=1,
          border_color=dashboardBorderColor,
-         border_width=1
+         border_width=1,
+         force_overlay=true
      )
 
 
