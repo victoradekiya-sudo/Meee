@@ -1,0 +1,3358 @@
+//@version=6
+indicator(
+     "Market Phase Detector v2.4 [Wyckoff MTF + MACD/OBV]",
+     shorttitle="MPD v2.4",
+     overlay=true,
+     max_labels_count=500
+)
+
+// ============================================================================
+// 01 — CORE ENGINE
+// ============================================================================
+
+groupCore = "01 — Core Engine"
+
+rangeLen = input.int(
+     40,
+     "Trading Range Length",
+     minval=15,
+     maxval=200,
+     group=groupCore
+)
+
+effThreshold = input.float(
+     0.32,
+     "Sideways Efficiency Max",
+     minval=0.05,
+     maxval=0.80,
+     step=0.01,
+     group=groupCore
+)
+
+phaseThreshold = input.int(
+     65,
+     "Phase Pressure Threshold",
+     minval=40,
+     maxval=90,
+     group=groupCore
+)
+
+scoreMargin = input.int(
+     10,
+     "Pressure Advantage Required",
+     minval=0,
+     maxval=40,
+     group=groupCore
+)
+
+phaseConfirmBars = input.int(
+     2,
+     "Bars Required To Confirm Phase",
+     minval=1,
+     maxval=6,
+     group=groupCore
+)
+
+useConfirmedBars = input.bool(
+     true,
+     "Use Last Confirmed Bar In Realtime",
+     group=groupCore
+)
+
+
+// ============================================================================
+// 02 — TREND ENGINE
+// ============================================================================
+
+groupTrend = "02 — Trend Engine"
+
+fastLen = input.int(
+     20,
+     "Fast EMA",
+     minval=2,
+     group=groupTrend
+)
+
+slowLen = input.int(
+     50,
+     "Slow EMA",
+     minval=5,
+     group=groupTrend
+)
+
+structureLen = input.int(
+     20,
+     "Structure Lookback",
+     minval=5,
+     group=groupTrend
+)
+
+momentumLen = input.int(
+     14,
+     "Momentum Length",
+     minval=3,
+     group=groupTrend
+)
+
+strongTrendScore = input.int(
+     55,
+     "Strong Trend Threshold",
+     minval=30,
+     maxval=90,
+     group=groupTrend
+)
+
+trendGateScore = input.int(
+     50,
+     "Trend Context Gate",
+     minval=20,
+     maxval=90,
+     group=groupTrend
+)
+
+reAccumTrendMin = input.int(
+     30,
+     "Re-Accumulation Trend Minimum",
+     minval=0,
+     maxval=80,
+     group=groupTrend
+)
+
+reDistribTrendMax = input.int(
+     -30,
+     "Re-Distribution Trend Maximum",
+     minval=-80,
+     maxval=0,
+     group=groupTrend
+)
+
+
+// ============================================================================
+// 03 — MONEY FLOW
+// ============================================================================
+
+groupFlow = "03 — Money Flow"
+
+cmfLen = input.int(
+     21,
+     "CMF Length",
+     minval=5,
+     group=groupFlow
+)
+
+cmfBull = input.float(
+     0.05,
+     "Bullish CMF Threshold",
+     step=0.01,
+     group=groupFlow
+)
+
+cmfBear = input.float(
+     -0.05,
+     "Bearish CMF Threshold",
+     step=0.01,
+     group=groupFlow
+)
+
+flowSlopeLen = input.int(
+     20,
+     "A/D Slope Length",
+     minval=5,
+     group=groupFlow
+)
+
+volumeLen = input.int(
+     20,
+     "Volume Average Length",
+     minval=5,
+     group=groupFlow
+)
+
+
+// ============================================================================
+// 04 — OBV
+// ============================================================================
+
+groupOBV = "04 — On-Balance Volume"
+
+obvSlopeLen = input.int(
+     20,
+     "OBV Slope Length",
+     minval=5,
+     group=groupOBV
+)
+
+obvSignalLen = input.int(
+     20,
+     "OBV Signal EMA",
+     minval=2,
+     group=groupOBV
+)
+
+obvTrendWeight = input.int(
+     8,
+     "OBV Weight In Trend Score",
+     minval=0,
+     maxval=30,
+     tooltip="Max points OBV slope contributes to the trend score. 0 disables. The trend score is re-normalised to ±100.",
+     group=groupOBV
+)
+
+obvPressureWeight = input.int(
+     25,
+     "OBV Weight In Acc / Dist Pressure",
+     minval=0,
+     maxval=40,
+     tooltip="Split: 50% OBV slope, 25% OBV vs signal, 25% OBV divergence. Pressure scores are re-normalised to 0–100.",
+     group=groupOBV
+)
+
+obvBreakoutConfirm = input.bool(
+     true,
+     "OBV Must Confirm SOS / SOW",
+     tooltip="SOS requires OBV above its signal EMA; SOW requires OBV below it.",
+     group=groupOBV
+)
+
+obvDivEnabled = input.bool(
+     true,
+     "Detect OBV Divergence",
+     group=groupOBV
+)
+
+
+// ============================================================================
+// 05 — MACD
+// ============================================================================
+
+groupMACD = "05 — MACD"
+
+useMACD = input.bool(
+     true,
+     "Enable MACD Module",
+     group=groupMACD
+)
+
+macdFastLen = input.int(
+     12,
+     "MACD Fast Length",
+     minval=2,
+     group=groupMACD
+)
+
+macdSlowLen = input.int(
+     26,
+     "MACD Slow Length",
+     minval=3,
+     group=groupMACD
+)
+
+macdSignalLen = input.int(
+     9,
+     "MACD Signal Length",
+     minval=2,
+     group=groupMACD
+)
+
+macdSourceInput = input.string(
+     "Close",
+     "MACD Source",
+     options=["Close", "HL2", "HLC3", "OHLC4"],
+     group=groupMACD
+)
+
+macdMAType = input.string(
+     "EMA",
+     "MACD MA Type",
+     options=["EMA", "SMA"],
+     group=groupMACD
+)
+
+macdTrendWeight = input.int(
+     15,
+     "MACD Weight In Trend Score",
+     minval=0,
+     maxval=40,
+     tooltip="Max points MACD (line + histogram, ATR-normalised) contributes to the trend score. The trend score is re-normalised to ±100.",
+     group=groupMACD
+)
+
+macdPressureWeight = input.int(
+     15,
+     "MACD Weight In Acc / Dist Pressure",
+     minval=0,
+     maxval=40,
+     tooltip="Split: 35% MACD vs signal, 25% histogram direction, 40% MACD divergence. Pressure scores are re-normalised to 0–100.",
+     group=groupMACD
+)
+
+macdBreakoutConfirm = input.bool(
+     true,
+     "MACD Must Confirm SOS / SOW",
+     tooltip="SOS requires a positive histogram; SOW requires a negative histogram.",
+     group=groupMACD
+)
+
+macdEventConfirm = input.bool(
+     true,
+     "MACD Must Confirm Spring / UTAD",
+     tooltip="Spring requires a rising histogram or a recent bullish MACD divergence (UTAD the bearish mirror).",
+     group=groupMACD
+)
+
+macdDivEnabled = input.bool(
+     true,
+     "Detect MACD Divergence",
+     group=groupMACD
+)
+
+macdDivSource = input.string(
+     "Histogram",
+     "MACD Divergence Source",
+     options=["Histogram", "MACD Line"],
+     group=groupMACD
+)
+
+
+// ============================================================================
+// 06 — DIVERGENCE
+// ============================================================================
+
+groupDiv = "06 — Divergence (MACD / OBV)"
+
+divPivotLen = input.int(
+     5,
+     "Pivot Length",
+     minval=2,
+     maxval=20,
+     tooltip="Bars on each side of a swing pivot. Divergences are confirmed this many bars after the pivot.",
+     group=groupDiv
+)
+
+divMaxGap = input.int(
+     60,
+     "Max Bars Between Pivots",
+     minval=10,
+     maxval=300,
+     group=groupDiv
+)
+
+divMemory = input.int(
+     15,
+     "Divergence Memory (Bars)",
+     minval=1,
+     maxval=60,
+     tooltip="How long a confirmed divergence keeps adding pressure points.",
+     group=groupDiv
+)
+
+showDivergences = input.bool(
+     false,
+     "Show Divergence Labels",
+     group=groupDiv
+)
+
+
+// ============================================================================
+// 07 — WYCKOFF EVENTS
+// ============================================================================
+
+groupWyckoff = "07 — Wyckoff Events"
+
+sweepMemory = input.int(
+     8,
+     "Sweep Confirmation Window",
+     minval=1,
+     maxval=30,
+     group=groupWyckoff
+)
+
+eventCooldown = input.int(
+     10,
+     "Event Label Cooldown",
+     minval=1,
+     maxval=50,
+     group=groupWyckoff
+)
+
+breakoutVol = input.float(
+     1.35,
+     "SOS / SOW Minimum RVOL",
+     minval=0.5,
+     maxval=5,
+     step=0.05,
+     group=groupWyckoff
+)
+
+showSweeps = input.bool(
+     false,
+     "Show Liquidity Sweeps",
+     group=groupWyckoff
+)
+
+showSpring = input.bool(
+     true,
+     "Show Confirmed Spring",
+     group=groupWyckoff
+)
+
+showUTAD = input.bool(
+     true,
+     "Show Confirmed UTAD",
+     group=groupWyckoff
+)
+
+showSOS = input.bool(
+     true,
+     "Show SOS",
+     group=groupWyckoff
+)
+
+showSOW = input.bool(
+     true,
+     "Show SOW",
+     group=groupWyckoff
+)
+
+
+// ============================================================================
+// 08 — MULTI TIMEFRAME
+// ============================================================================
+
+groupMTF = "08 — Multi Timeframe"
+
+higherTF = input.timeframe(
+     "D",
+     "Primary Timeframe",
+     group=groupMTF
+)
+
+localTF = input.timeframe(
+     "240",
+     "Local Timeframe",
+     group=groupMTF
+)
+
+showMTF = input.bool(
+     true,
+     "Show MTF Data",
+     group=groupMTF
+)
+
+
+// ============================================================================
+// 09 — DISPLAY
+// ============================================================================
+
+groupDisplay = "09 — Display"
+
+backgroundMode = input.string(
+     "Regime",
+     "Background Mode",
+     options=["Off", "Regime", "Phase"],
+     group=groupDisplay
+)
+
+showEMA = input.bool(
+     true,
+     "Show EMA",
+     group=groupDisplay
+)
+
+showRange = input.bool(
+     true,
+     "Show Trading Range",
+     group=groupDisplay
+)
+
+showPhaseLabels = input.bool(
+     true,
+     "Show Phase Change Labels",
+     group=groupDisplay
+)
+
+showDashboard = input.bool(
+     true,
+     "Show Dashboard",
+     group=groupDisplay
+)
+
+
+// ============================================================================
+// 10 — PHASE COLORS
+// ============================================================================
+
+groupColors = "10 — Phase Colors"
+
+colorAccumulation = input.color(
+     color.rgb(41, 98, 255),
+     "Accumulation",
+     group=groupColors
+)
+
+colorReAccumulation = input.color(
+     color.rgb(0, 188, 212),
+     "Re-Accumulation",
+     group=groupColors
+)
+
+colorMarkup = input.color(
+     color.rgb(76, 175, 80),
+     "Markup",
+     group=groupColors
+)
+
+colorDistribution = input.color(
+     color.rgb(255, 152, 0),
+     "Distribution",
+     group=groupColors
+)
+
+colorReDistribution = input.color(
+     color.rgb(255, 87, 34),
+     "Re-Distribution",
+     group=groupColors
+)
+
+colorMarkdown = input.color(
+     color.rgb(244, 67, 54),
+     "Markdown",
+     group=groupColors
+)
+
+colorNeutral = input.color(
+     color.gray,
+     "Neutral",
+     group=groupColors
+)
+
+phaseBackgroundTransparency = input.int(
+     91,
+     "Phase Background Transparency",
+     minval=0,
+     maxval=100,
+     group=groupColors
+)
+
+regimeBackgroundTransparency = input.int(
+     94,
+     "Regime Background Transparency",
+     minval=0,
+     maxval=100,
+     group=groupColors
+)
+
+
+// ============================================================================
+// 11 — LINE COLORS
+// ============================================================================
+
+groupLines = "11 — Lines"
+
+fastEMAColor = input.color(
+     color.white,
+     "Fast EMA Color",
+     group=groupLines
+)
+
+slowEMAColor = input.color(
+     color.rgb(255, 193, 7),
+     "Slow EMA Color",
+     group=groupLines
+)
+
+fastEMAWidth = input.int(
+     1,
+     "Fast EMA Width",
+     minval=1,
+     maxval=5,
+     group=groupLines
+)
+
+slowEMAWidth = input.int(
+     2,
+     "Slow EMA Width",
+     minval=1,
+     maxval=5,
+     group=groupLines
+)
+
+rangeHighColor = input.color(
+     color.red,
+     "Range High",
+     group=groupLines
+)
+
+rangeLowColor = input.color(
+     color.green,
+     "Range Low",
+     group=groupLines
+)
+
+rangeTransparency = input.int(
+     45,
+     "Range Transparency",
+     minval=0,
+     maxval=100,
+     group=groupLines
+)
+
+
+// ============================================================================
+// 12 — EVENT COLORS
+// ============================================================================
+
+groupEvents = "12 — Event Colors"
+
+springColor = input.color(
+     color.rgb(41, 98, 255),
+     "Spring",
+     group=groupEvents
+)
+
+utadColor = input.color(
+     color.rgb(255, 152, 0),
+     "UTAD",
+     group=groupEvents
+)
+
+sosColor = input.color(
+     color.rgb(76, 175, 80),
+     "SOS",
+     group=groupEvents
+)
+
+sowColor = input.color(
+     color.rgb(244, 67, 54),
+     "SOW",
+     group=groupEvents
+)
+
+sweepHighColor = input.color(
+     color.orange,
+     "Sweep High",
+     group=groupEvents
+)
+
+sweepLowColor = input.color(
+     color.aqua,
+     "Sweep Low",
+     group=groupEvents
+)
+
+bullDivColor = input.color(
+     color.rgb(0, 150, 136),
+     "Bullish Divergence",
+     group=groupEvents
+)
+
+bearDivColor = input.color(
+     color.rgb(233, 30, 99),
+     "Bearish Divergence",
+     group=groupEvents
+)
+
+eventTextColor = input.color(
+     color.white,
+     "Event Text",
+     group=groupEvents
+)
+
+
+// ============================================================================
+// 13 — SMART ALERT SETTINGS
+// ============================================================================
+
+groupSmartAlerts = "13 — Smart MTF Alerts"
+
+enableStrongBullAlert = input.bool(
+     true,
+     "Enable Strong Bullish Setup",
+     group=groupSmartAlerts
+)
+
+enableRiskAlert = input.bool(
+     true,
+     "Enable Risk Warning",
+     group=groupSmartAlerts
+)
+
+enableBearReversalAlert = input.bool(
+     true,
+     "Enable Bearish Reversal Warning",
+     group=groupSmartAlerts
+)
+
+enableBullRecoveryAlert = input.bool(
+     true,
+     "Enable Bullish Recovery",
+     group=groupSmartAlerts
+)
+
+strongDistributionAlertLevel = input.int(
+     75,
+     "Strong Distribution Level",
+     minval=65,
+     maxval=100,
+     group=groupSmartAlerts
+)
+
+smartAlertConfirm = input.bool(
+     true,
+     "Require Local MACD / OBV Agreement",
+     tooltip="Bullish smart alerts need local MACD above signal and OBV not distributing; bearish alerts need the mirror. Also lets a local bearish MACD/OBV divergence raise an early Risk Warning.",
+     group=groupSmartAlerts
+)
+
+
+// ============================================================================
+// 14 — DASHBOARD
+// ============================================================================
+
+groupDashboard = "14 — Dashboard"
+
+dashboardPositionInput = input.string(
+     "Bottom Right",
+     "Dashboard Position",
+     options=["Top Left", "Top Right", "Bottom Left", "Bottom Right"],
+     group=groupDashboard
+)
+
+dashboardBackground = input.color(
+     color.rgb(25, 25, 60),
+     "Background",
+     group=groupDashboard
+)
+
+dashboardTransparency = input.int(
+     5,
+     "Background Transparency",
+     minval=0,
+     maxval=100,
+     group=groupDashboard
+)
+
+dashboardLabelColor = input.color(
+     color.white,
+     "Label Text",
+     group=groupDashboard
+)
+
+dashboardValueColor = input.color(
+     color.white,
+     "Value Text",
+     group=groupDashboard
+)
+
+dashboardHeaderColor = input.color(
+     color.white,
+     "Header Text",
+     group=groupDashboard
+)
+
+dashboardBorderColor = input.color(
+     color.gray,
+     "Border",
+     group=groupDashboard
+)
+
+dashboardTextSizeInput = input.string(
+     "Small",
+     "Text Size",
+     options=["Tiny", "Small", "Normal", "Large"],
+     group=groupDashboard
+)
+
+
+// ============================================================================
+// DASHBOARD HELPERS
+// ============================================================================
+
+dashboardPosition = position.bottom_right
+
+if dashboardPositionInput == "Top Left"
+    dashboardPosition := position.top_left
+else if dashboardPositionInput == "Top Right"
+    dashboardPosition := position.top_right
+else if dashboardPositionInput == "Bottom Left"
+    dashboardPosition := position.bottom_left
+else
+    dashboardPosition := position.bottom_right
+
+
+dashboardTextSize = size.small
+
+if dashboardTextSizeInput == "Tiny"
+    dashboardTextSize := size.tiny
+else if dashboardTextSizeInput == "Normal"
+    dashboardTextSize := size.normal
+else if dashboardTextSizeInput == "Large"
+    dashboardTextSize := size.large
+else
+    dashboardTextSize := size.small
+
+
+// ============================================================================
+// GENERIC HELPERS
+// ============================================================================
+
+f_clamp(float value, float minimum, float maximum) =>
+    math.max(minimum, math.min(maximum, value))
+
+
+f_sign(float value) =>
+    value > 0 ? 1 : value < 0 ? -1 : 0
+
+
+f_signChar(int value) =>
+    value > 0 ? "+" : value < 0 ? "−" : "0"
+
+
+f_ma(float source, int length, string maType) =>
+    emaValue = ta.ema(source, length)
+    smaValue = ta.sma(source, length)
+    maType == "SMA" ? smaValue : emaValue
+
+
+f_phaseName(int p) =>
+    switch p
+        1 => "ACCUMULATION"
+        2 => "MARKUP"
+        3 => "RE-ACCUMULATION"
+        4 => "DISTRIBUTION"
+        5 => "MARKDOWN"
+        6 => "RE-DISTRIBUTION"
+        => "NEUTRAL"
+
+
+f_phaseColor(int p) =>
+    switch p
+        1 => colorAccumulation
+        2 => colorMarkup
+        3 => colorReAccumulation
+        4 => colorDistribution
+        5 => colorMarkdown
+        6 => colorReDistribution
+        => colorNeutral
+
+
+f_trendName(float t) =>
+    string result = "NEUTRAL"
+
+    if t >= 60
+        result := "STRONG BULL"
+    else if t >= 25
+        result := "BULL"
+    else if t <= -60
+        result := "STRONG BEAR"
+    else if t <= -25
+        result := "BEAR"
+
+    result
+
+
+f_pressureName(float score) =>
+    string result = "LOW"
+
+    if score >= 80
+        result := "VERY HIGH"
+    else if score >= 65
+        result := "HIGH"
+    else if score >= 50
+        result := "MEDIUM"
+
+    result
+
+
+f_macdName(int b) =>
+    switch b
+        2 => "BULLISH"
+        1 => "RECOVERING"
+        -1 => "FADING"
+        -2 => "BEARISH"
+        => "NEUTRAL"
+
+
+f_obvName(int b) =>
+    switch b
+        2 => "ACCUMULATING"
+        1 => "MILD INFLOW"
+        -1 => "MILD OUTFLOW"
+        -2 => "DISTRIBUTING"
+        => "MIXED"
+
+
+f_divName(int d) =>
+    d > 0 ? "BULL DIV" : d < 0 ? "BEAR DIV" : "NO DIV"
+
+
+// ----------------------------------------------------------------------------
+// Regular divergence between price swing pivots and an oscillator.
+// Confirmed divPivotLen bars after the pivot, so it never repaints.
+// Returns [bullEvent, bearEvent, bullRecent, bearRecent].
+// ----------------------------------------------------------------------------
+
+f_divergence(float osc) =>
+    pivotLow = ta.pivotlow(low, divPivotLen, divPivotLen)
+    pivotHigh = ta.pivothigh(high, divPivotLen, divPivotLen)
+
+    foundLow = not na(pivotLow)
+    foundHigh = not na(pivotHigh)
+
+    oscAtPivot = osc[divPivotLen]
+    pivotBar = bar_index - divPivotLen
+
+    prevLowPrice = ta.valuewhen(foundLow, low[divPivotLen], 1)
+    prevLowOsc = ta.valuewhen(foundLow, oscAtPivot, 1)
+    prevLowBar = ta.valuewhen(foundLow, pivotBar, 1)
+
+    prevHighPrice = ta.valuewhen(foundHigh, high[divPivotLen], 1)
+    prevHighOsc = ta.valuewhen(foundHigh, oscAtPivot, 1)
+    prevHighBar = ta.valuewhen(foundHigh, pivotBar, 1)
+
+    bullDiv =
+         foundLow and
+         not na(prevLowBar) and
+         pivotBar - prevLowBar <= divMaxGap and
+         low[divPivotLen] < prevLowPrice and
+         oscAtPivot > prevLowOsc
+
+    bearDiv =
+         foundHigh and
+         not na(prevHighBar) and
+         pivotBar - prevHighBar <= divMaxGap and
+         high[divPivotLen] > prevHighPrice and
+         oscAtPivot < prevHighOsc
+
+    barsSinceBull = ta.barssince(bullDiv)
+    barsSinceBear = ta.barssince(bearDiv)
+
+    recentBull =
+         not na(barsSinceBull) and
+         barsSinceBull <= divMemory
+
+    recentBear =
+         not na(barsSinceBear) and
+         barsSinceBear <= divMemory
+
+    [bullDiv, bearDiv, recentBull, recentBear]
+
+
+// ============================================================================
+// MARKET ENGINE
+// ============================================================================
+
+f_engine() =>
+
+    // ------------------------------------------------------------------------
+    // EMA / ATR
+    // ------------------------------------------------------------------------
+
+    emaFastLocal = ta.ema(close, fastLen)
+    emaSlowLocal = ta.ema(close, slowLen)
+
+    atrLocal = ta.atr(14)
+
+    safeATR = atrLocal
+
+    if safeATR == 0 or na(safeATR)
+        safeATR := 1.0
+
+
+    // ------------------------------------------------------------------------
+    // STRUCTURE
+    // ------------------------------------------------------------------------
+
+    highSlope =
+         ta.linreg(high, structureLen, 0) -
+         ta.linreg(high, structureLen, 1)
+
+    lowSlope =
+         ta.linreg(low, structureLen, 0) -
+         ta.linreg(low, structureLen, 1)
+
+    emaFastSlope =
+         emaFastLocal - emaFastLocal[5]
+
+    emaSlowSlope =
+         emaSlowLocal - emaSlowLocal[5]
+
+
+    // ------------------------------------------------------------------------
+    // VOLUME
+    // ------------------------------------------------------------------------
+
+    avgVolume =
+         ta.sma(volume, volumeLen)
+
+    relativeVolume = 0.0
+
+    if avgVolume > 0
+        relativeVolume :=
+             volume / avgVolume
+
+    safeVolume =
+         avgVolume > 0 ? avgVolume : 1.0
+
+
+    upVolume =
+         ta.sma(
+             close > close[1] ? volume : 0,
+             volumeLen
+         )
+
+    downVolume =
+         ta.sma(
+             close < close[1] ? volume : 0,
+             volumeLen
+         )
+
+    buyVolumeDominant =
+         upVolume > downVolume
+
+    sellVolumeDominant =
+         downVolume > upVolume
+
+
+    // ------------------------------------------------------------------------
+    // CMF
+    // ------------------------------------------------------------------------
+
+    candleRange =
+         high - low
+
+    mfMultiplier = 0.0
+
+    if candleRange != 0
+        mfMultiplier :=
+             ((close - low) - (high - close)) / candleRange
+
+    mfVolume =
+         mfMultiplier * volume
+
+    totalVolume =
+         math.sum(volume, cmfLen)
+
+    cmf = 0.0
+
+    if totalVolume != 0
+        cmf :=
+             math.sum(mfVolume, cmfLen) / totalVolume
+
+
+    // ------------------------------------------------------------------------
+    // OBV
+    // ------------------------------------------------------------------------
+
+    signedVolume = 0.0
+
+    if close > close[1]
+        signedVolume := volume
+    else if close < close[1]
+        signedVolume := -volume
+
+    obv =
+         ta.cum(signedVolume)
+
+    obvSlope =
+         ta.linreg(obv, obvSlopeLen, 0) -
+         ta.linreg(obv, obvSlopeLen, 1)
+
+    obvSignal =
+         ta.ema(obv, obvSignalLen)
+
+    obvAboveSignal =
+         obv > obvSignal
+
+    obvBelowSignal =
+         obv < obvSignal
+
+    // Slope expressed in "average bars of volume" so it is comparable across symbols
+    obvSlopeNorm =
+         nz(obvSlope / safeVolume)
+
+    int obvBias =
+         (obvAboveSignal ? 1 : obvBelowSignal ? -1 : 0) +
+         f_sign(nz(obvSlope))
+
+
+    // ------------------------------------------------------------------------
+    // MACD
+    // ------------------------------------------------------------------------
+
+    macdSrc = switch macdSourceInput
+        "HL2" => hl2
+        "HLC3" => hlc3
+        "OHLC4" => ohlc4
+        => close
+
+    macdLine =
+         f_ma(macdSrc, macdFastLen, macdMAType) -
+         f_ma(macdSrc, macdSlowLen, macdMAType)
+
+    macdSignal =
+         f_ma(macdLine, macdSignalLen, macdMAType)
+
+    macdHist =
+         macdLine - macdSignal
+
+    histRising =
+         useMACD and
+         macdHist > macdHist[1]
+
+    histFalling =
+         useMACD and
+         macdHist < macdHist[1]
+
+    macdAboveSignal =
+         useMACD and
+         macdLine > macdSignal
+
+    macdBelowSignal =
+         useMACD and
+         macdLine < macdSignal
+
+    int macdBias = 0
+
+    if macdAboveSignal
+        macdBias := macdLine > 0 ? 2 : 1
+    else if macdBelowSignal
+        macdBias := macdLine < 0 ? -2 : -1
+
+
+    // ------------------------------------------------------------------------
+    // MACD / OBV DIVERGENCE
+    // ------------------------------------------------------------------------
+
+    macdDivOsc =
+         macdDivSource == "MACD Line" ? macdLine : macdHist
+
+    [macdBullDivRaw, macdBearDivRaw, macdBullRecentRaw, macdBearRecentRaw] = f_divergence(macdDivOsc)
+
+    [obvBullDivRaw, obvBearDivRaw, obvBullRecentRaw, obvBearRecentRaw] = f_divergence(obv)
+
+    macdDivActive =
+         useMACD and
+         macdDivEnabled
+
+    macdBullDiv = macdDivActive and macdBullDivRaw
+    macdBearDiv = macdDivActive and macdBearDivRaw
+    macdBullRecent = macdDivActive and macdBullRecentRaw
+    macdBearRecent = macdDivActive and macdBearRecentRaw
+
+    obvBullDiv = obvDivEnabled and obvBullDivRaw
+    obvBearDiv = obvDivEnabled and obvBearDivRaw
+    obvBullRecent = obvDivEnabled and obvBullRecentRaw
+    obvBearRecent = obvDivEnabled and obvBearRecentRaw
+
+    int macdDivState =
+         macdBullRecent and not macdBearRecent ? 1 :
+         macdBearRecent and not macdBullRecent ? -1 : 0
+
+    int obvDivState =
+         obvBullRecent and not obvBearRecent ? 1 :
+         obvBearRecent and not obvBullRecent ? -1 : 0
+
+
+    // ------------------------------------------------------------------------
+    // SMOOTH TREND SCORE
+    // ------------------------------------------------------------------------
+
+    priceFastATR =
+         (close - emaFastLocal) / safeATR
+
+    emaGapATR =
+         (emaFastLocal - emaSlowLocal) / safeATR
+
+    fastSlopeATR =
+         emaFastSlope / safeATR
+
+    slowSlopeATR =
+         emaSlowSlope / safeATR
+
+    momentumATR =
+         (close - close[momentumLen]) / safeATR
+
+    structureATR =
+         ((highSlope + lowSlope) / 2.0) / safeATR
+
+    macdLineATR =
+         nz(macdLine / safeATR)
+
+    macdHistATR =
+         nz(macdHist / safeATR)
+
+
+    trendComponent1 =
+         f_clamp(priceFastATR * 10.0, -18.0, 18.0)
+
+    trendComponent2 =
+         f_clamp(emaGapATR * 12.0, -22.0, 22.0)
+
+    trendComponent3 =
+         f_clamp(fastSlopeATR * 15.0, -18.0, 18.0)
+
+    trendComponent4 =
+         f_clamp(slowSlopeATR * 18.0, -16.0, 16.0)
+
+    trendComponent5 =
+         f_clamp(momentumATR * 2.0, -14.0, 14.0)
+
+    trendComponent6 =
+         f_clamp(structureATR * 30.0, -12.0, 12.0)
+
+    // MACD: line position (trend) + histogram (acceleration), ATR-normalised
+    trendComponentMACD =
+         useMACD ?
+         f_clamp(macdLineATR * 0.5 + macdHistATR * 1.0, -1.0, 1.0) * macdTrendWeight :
+         0.0
+
+    // OBV: is volume flowing with the move?
+    trendComponentOBV =
+         f_clamp(obvSlopeNorm * 2.0, -1.0, 1.0) * obvTrendWeight
+
+
+    trendMaxPoints =
+         100.0 +
+         (useMACD ? macdTrendWeight : 0) +
+         obvTrendWeight
+
+    trendFloat =
+         (
+             trendComponent1 +
+             trendComponent2 +
+             trendComponent3 +
+             trendComponent4 +
+             trendComponent5 +
+             trendComponent6 +
+             trendComponentMACD +
+             trendComponentOBV
+         ) * 100.0 / trendMaxPoints
+
+    trendScore =
+         int(math.round(f_clamp(trendFloat, -100.0, 100.0)))
+
+
+    // ------------------------------------------------------------------------
+    // RANGE ENGINE
+    // ------------------------------------------------------------------------
+
+    rangeHighPrev =
+         ta.highest(high[1], rangeLen)
+
+    rangeLowPrev =
+         ta.lowest(low[1], rangeLen)
+
+    rangeMid =
+         (rangeHighPrev + rangeLowPrev) / 2.0
+
+    priceTravel =
+         math.sum(
+             math.abs(ta.change(close)),
+             rangeLen
+         )
+
+    efficiency = 0.0
+
+    if priceTravel != 0
+        efficiency :=
+             math.abs(close - close[rangeLen]) / priceTravel
+
+    sideways =
+         efficiency < effThreshold
+
+
+    // ------------------------------------------------------------------------
+    // A/D
+    // ------------------------------------------------------------------------
+
+    ad =
+         ta.cum(mfVolume)
+
+    adSlope =
+         ta.linreg(ad, flowSlopeLen, 0) -
+         ta.linreg(ad, flowSlopeLen, 1)
+
+
+    // ------------------------------------------------------------------------
+    // LIQUIDITY SWEEPS
+    // ------------------------------------------------------------------------
+
+    sweepLow =
+         low < rangeLowPrev and
+         close > rangeLowPrev
+
+    sweepHigh =
+         high > rangeHighPrev and
+         close < rangeHighPrev
+
+    barsSinceSweepLow =
+         ta.barssince(sweepLow)
+
+    barsSinceSweepHigh =
+         ta.barssince(sweepHigh)
+
+    recentSweepLow =
+         not na(barsSinceSweepLow) and
+         barsSinceSweepLow <= sweepMemory
+
+    recentSweepHigh =
+         not na(barsSinceSweepHigh) and
+         barsSinceSweepHigh <= sweepMemory
+
+
+    // ------------------------------------------------------------------------
+    // STRUCTURAL DAMAGE / RECOVERY
+    // ------------------------------------------------------------------------
+
+    bearishStructureDamage =
+         close < rangeMid and
+         close < emaFastLocal and
+         highSlope < 0
+
+    bullishStructureRecovery =
+         close > rangeMid and
+         close > emaFastLocal and
+         lowSlope > 0
+
+
+    // ------------------------------------------------------------------------
+    // WYCKOFF CONFIRMATION
+    // ------------------------------------------------------------------------
+
+    springMACDOk =
+         not (useMACD and macdEventConfirm) or
+         histRising or
+         macdBullRecent
+
+    utadMACDOk =
+         not (useMACD and macdEventConfirm) or
+         histFalling or
+         macdBearRecent
+
+    springConfirmed =
+         recentSweepLow and
+         sideways and
+         bullishStructureRecovery and
+         cmf > 0 and
+         obvSlope > 0 and
+         springMACDOk
+
+    utadConfirmed =
+         recentSweepHigh and
+         sideways and
+         bearishStructureDamage and
+         cmf < 0 and
+         obvSlope < 0 and
+         utadMACDOk
+
+
+    // ------------------------------------------------------------------------
+    // SOS / SOW
+    // ------------------------------------------------------------------------
+
+    sosMACDOk =
+         not (useMACD and macdBreakoutConfirm) or
+         macdHist > 0
+
+    sowMACDOk =
+         not (useMACD and macdBreakoutConfirm) or
+         macdHist < 0
+
+    sosOBVOk =
+         not obvBreakoutConfirm or
+         obvAboveSignal
+
+    sowOBVOk =
+         not obvBreakoutConfirm or
+         obvBelowSignal
+
+    sos =
+         close > rangeHighPrev and
+         relativeVolume >= breakoutVol and
+         cmf > 0 and
+         sosMACDOk and
+         sosOBVOk
+
+    sow =
+         close < rangeLowPrev and
+         relativeVolume >= breakoutVol and
+         cmf < 0 and
+         sowMACDOk and
+         sowOBVOk
+
+
+    // ------------------------------------------------------------------------
+    // PRESSURE WEIGHTS
+    //
+    // Base Wyckoff / CMF / A-D components = 85 points.
+    // OBV and MACD weights are added on top and the total is
+    // re-normalised to 0–100 so phase thresholds keep their meaning.
+    // ------------------------------------------------------------------------
+
+    obvW = float(obvPressureWeight)
+    macdW = useMACD ? float(macdPressureWeight) : 0.0
+
+    obvMaxPoints =
+         obvW * (obvDivEnabled ? 1.0 : 0.75)
+
+    macdMaxPoints =
+         macdW * (macdDivEnabled ? 1.0 : 0.60)
+
+    pressureMaxPoints =
+         85.0 + obvMaxPoints + macdMaxPoints
+
+
+    // ------------------------------------------------------------------------
+    // ACCUMULATION PRESSURE
+    // ------------------------------------------------------------------------
+
+    float accumulationRaw = 0.0
+
+    if sideways
+        accumulationRaw += 20
+
+    if cmf >= cmfBull
+        accumulationRaw += 20
+    else if cmf > 0
+        accumulationRaw += 10
+
+    if adSlope > 0
+        accumulationRaw += 10
+
+    if buyVolumeDominant
+        accumulationRaw += 10
+
+    if recentSweepLow
+        accumulationRaw += 5
+
+    if springConfirmed
+        accumulationRaw += 10
+
+    if bullishStructureRecovery
+        accumulationRaw += 10
+
+    // OBV
+    if obvSlope > 0
+        accumulationRaw += obvW * 0.50
+
+    if obvAboveSignal
+        accumulationRaw += obvW * 0.25
+
+    if obvBullRecent
+        accumulationRaw += obvW * 0.25
+
+    // MACD
+    if macdAboveSignal
+        accumulationRaw += macdW * 0.35
+
+    if histRising
+        accumulationRaw += macdW * 0.25
+
+    if macdBullRecent
+        accumulationRaw += macdW * 0.40
+
+    accumulationScore =
+         int(math.round(f_clamp(accumulationRaw / pressureMaxPoints * 100.0, 0, 100)))
+
+
+    // ------------------------------------------------------------------------
+    // DISTRIBUTION PRESSURE
+    // ------------------------------------------------------------------------
+
+    float distributionRaw = 0.0
+
+    if sideways
+        distributionRaw += 20
+
+    if cmf <= cmfBear
+        distributionRaw += 20
+    else if cmf < 0
+        distributionRaw += 10
+
+    if adSlope < 0
+        distributionRaw += 10
+
+    if sellVolumeDominant
+        distributionRaw += 10
+
+    if recentSweepHigh
+        distributionRaw += 5
+
+    if utadConfirmed
+        distributionRaw += 10
+
+    if bearishStructureDamage
+        distributionRaw += 10
+
+    // OBV
+    if obvSlope < 0
+        distributionRaw += obvW * 0.50
+
+    if obvBelowSignal
+        distributionRaw += obvW * 0.25
+
+    if obvBearRecent
+        distributionRaw += obvW * 0.25
+
+    // MACD
+    if macdBelowSignal
+        distributionRaw += macdW * 0.35
+
+    if histFalling
+        distributionRaw += macdW * 0.25
+
+    if macdBearRecent
+        distributionRaw += macdW * 0.40
+
+    distributionScore =
+         int(math.round(f_clamp(distributionRaw / pressureMaxPoints * 100.0, 0, 100)))
+
+
+    // ------------------------------------------------------------------------
+    // PRESSURE DOMINANCE
+    // ------------------------------------------------------------------------
+
+    accumulationDominant =
+         accumulationScore >= phaseThreshold and
+         accumulationScore >= distributionScore + scoreMargin
+
+    distributionDominant =
+         distributionScore >= phaseThreshold and
+         distributionScore >= accumulationScore + scoreMargin
+
+
+    // ------------------------------------------------------------------------
+    // CONTEXT STATES
+    // ------------------------------------------------------------------------
+
+    strongBull =
+         trendScore >= trendGateScore
+
+    strongBear =
+         trendScore <= -trendGateScore
+
+    reAccumContext =
+         trendScore >= reAccumTrendMin
+
+    reDistribContext =
+         trendScore <= reDistribTrendMax
+
+
+    // ------------------------------------------------------------------------
+    // RAW PHASE
+    // ------------------------------------------------------------------------
+
+    int rawPhase = 0
+
+    if sideways
+
+        if accumulationDominant
+
+            if reAccumContext
+                rawPhase := 3
+
+            else if reDistribContext and not bullishStructureRecovery
+                rawPhase := 6
+
+            else
+                rawPhase := 1
+
+
+        else if distributionDominant
+
+            if strongBull and not bearishStructureDamage and not sow
+                rawPhase := 3
+
+            else if reDistribContext
+                rawPhase := 6
+
+            else
+                rawPhase := 4
+
+
+        else
+
+            if strongBull
+                rawPhase := 3
+
+            else if strongBear
+                rawPhase := 6
+
+            else
+                rawPhase := 0
+
+
+    else
+
+        if trendScore >= strongTrendScore
+            rawPhase := 2
+
+        else if trendScore <= -strongTrendScore
+            rawPhase := 5
+
+        else
+            rawPhase := 0
+
+
+    // ------------------------------------------------------------------------
+    // PHASE CONFIRMATION
+    // ------------------------------------------------------------------------
+
+    phaseStable = true
+
+    if phaseConfirmBars > 1
+
+        for i = 1 to phaseConfirmBars - 1
+            phaseStable :=
+                 phaseStable and
+                 rawPhase == rawPhase[i]
+
+
+    stablePhase = 0
+
+    if phaseStable
+        stablePhase := rawPhase
+
+
+    // ------------------------------------------------------------------------
+    // CONFIRMED REALTIME OUTPUT
+    // ------------------------------------------------------------------------
+
+    usePrevious =
+         useConfirmedBars and
+         barstate.isrealtime
+
+
+    outPhase = stablePhase
+    outTrend = trendScore
+    outAcc = accumulationScore
+    outDist = distributionScore
+    outCMF = cmf
+    outRVOL = relativeVolume
+    outSideways = sideways
+    outSweepLow = sweepLow
+    outSweepHigh = sweepHigh
+    outSpring = springConfirmed
+    outUTAD = utadConfirmed
+    outSOS = sos
+    outSOW = sow
+    outFast = emaFastLocal
+    outSlow = emaSlowLocal
+    outRangeHigh = rangeHighPrev
+    outRangeLow = rangeLowPrev
+    outMACDHist = macdHist
+    outMACDBias = macdBias
+    outOBVBias = obvBias
+    outMACDDiv = macdDivState
+    outOBVDiv = obvDivState
+    outMACDBullDiv = macdBullDiv
+    outMACDBearDiv = macdBearDiv
+    outOBVBullDiv = obvBullDiv
+    outOBVBearDiv = obvBearDiv
+
+
+    if usePrevious
+
+        outPhase := stablePhase[1]
+        outTrend := trendScore[1]
+        outAcc := accumulationScore[1]
+        outDist := distributionScore[1]
+        outCMF := cmf[1]
+        outRVOL := relativeVolume[1]
+        outSideways := sideways[1]
+        outSweepLow := sweepLow[1]
+        outSweepHigh := sweepHigh[1]
+        outSpring := springConfirmed[1]
+        outUTAD := utadConfirmed[1]
+        outSOS := sos[1]
+        outSOW := sow[1]
+        outFast := emaFastLocal[1]
+        outSlow := emaSlowLocal[1]
+        outRangeHigh := rangeHighPrev[1]
+        outRangeLow := rangeLowPrev[1]
+        outMACDHist := macdHist[1]
+        outMACDBias := macdBias[1]
+        outOBVBias := obvBias[1]
+        outMACDDiv := macdDivState[1]
+        outOBVDiv := obvDivState[1]
+        outMACDBullDiv := macdBullDiv[1]
+        outMACDBearDiv := macdBearDiv[1]
+        outOBVBullDiv := obvBullDiv[1]
+        outOBVBearDiv := obvBearDiv[1]
+
+
+    [
+         outPhase,
+         outTrend,
+         outAcc,
+         outDist,
+         outCMF,
+         outRVOL,
+         outSideways ? 1 : 0,
+         outSweepLow ? 1 : 0,
+         outSweepHigh ? 1 : 0,
+         outSpring ? 1 : 0,
+         outUTAD ? 1 : 0,
+         outSOS ? 1 : 0,
+         outSOW ? 1 : 0,
+         outFast,
+         outSlow,
+         outRangeHigh,
+         outRangeLow,
+         outMACDHist,
+         outMACDBias,
+         outOBVBias,
+         outMACDDiv,
+         outOBVDiv,
+         outMACDBullDiv ? 1 : 0,
+         outMACDBearDiv ? 1 : 0,
+         outOBVBullDiv ? 1 : 0,
+         outOBVBearDiv ? 1 : 0
+    ]
+
+
+// ============================================================================
+// CURRENT TIMEFRAME
+// ============================================================================
+
+[
+     phase,
+     trendScore,
+     accumulationScore,
+     distributionScore,
+     cmf,
+     relativeVolume,
+     sidewaysInt,
+     sweepLowInt,
+     sweepHighInt,
+     springInt,
+     utadInt,
+     sosInt,
+     sowInt,
+     emaFast,
+     emaSlow,
+     rangeHigh,
+     rangeLow,
+     macdHist,
+     macdBias,
+     obvBias,
+     macdDivState,
+     obvDivState,
+     macdBullDivInt,
+     macdBearDivInt,
+     obvBullDivInt,
+     obvBearDivInt
+] = f_engine()
+
+
+sideways = sidewaysInt == 1
+sweepLow = sweepLowInt == 1
+sweepHigh = sweepHighInt == 1
+spring = springInt == 1
+utad = utadInt == 1
+sos = sosInt == 1
+sow = sowInt == 1
+macdBullDiv = macdBullDivInt == 1
+macdBearDiv = macdBearDivInt == 1
+obvBullDiv = obvBullDivInt == 1
+obvBearDiv = obvBearDivInt == 1
+
+
+// ============================================================================
+// EVENT STATE CHANGES
+// ============================================================================
+
+springEvent =
+     spring and
+     not spring[1]
+
+utadEvent =
+     utad and
+     not utad[1]
+
+sosEvent =
+     sos and
+     not sos[1]
+
+sowEvent =
+     sow and
+     not sow[1]
+
+sweepLowEvent =
+     sweepLow and
+     not sweepLow[1]
+
+sweepHighEvent =
+     sweepHigh and
+     not sweepHigh[1]
+
+macdBullCross =
+     macdBias >= 1 and
+     macdBias[1] <= -1
+
+macdBearCross =
+     macdBias <= -1 and
+     macdBias[1] >= 1
+
+
+// ============================================================================
+// EVENT COOLDOWN
+// ============================================================================
+
+var int lastSpringBar = na
+var int lastUTADBar = na
+var int lastSOSBar = na
+var int lastSOWBar = na
+var int lastSweepLowBar = na
+var int lastSweepHighBar = na
+
+
+plotSpring =
+     springEvent and
+     (
+         na(lastSpringBar) or
+         bar_index - lastSpringBar > eventCooldown
+     )
+
+plotUTAD =
+     utadEvent and
+     (
+         na(lastUTADBar) or
+         bar_index - lastUTADBar > eventCooldown
+     )
+
+plotSOS =
+     sosEvent and
+     (
+         na(lastSOSBar) or
+         bar_index - lastSOSBar > eventCooldown
+     )
+
+plotSOW =
+     sowEvent and
+     (
+         na(lastSOWBar) or
+         bar_index - lastSOWBar > eventCooldown
+     )
+
+plotSweepLow =
+     sweepLowEvent and
+     (
+         na(lastSweepLowBar) or
+         bar_index - lastSweepLowBar > eventCooldown
+     )
+
+plotSweepHigh =
+     sweepHighEvent and
+     (
+         na(lastSweepHighBar) or
+         bar_index - lastSweepHighBar > eventCooldown
+     )
+
+
+if plotSpring
+    lastSpringBar := bar_index
+
+if plotUTAD
+    lastUTADBar := bar_index
+
+if plotSOS
+    lastSOSBar := bar_index
+
+if plotSOW
+    lastSOWBar := bar_index
+
+if plotSweepLow
+    lastSweepLowBar := bar_index
+
+if plotSweepHigh
+    lastSweepHighBar := bar_index
+
+
+phaseChanged =
+     phase != phase[1]
+
+
+// ============================================================================
+// BACKGROUND
+// ============================================================================
+
+phaseColor =
+     f_phaseColor(phase)
+
+
+regimeColor =
+     color.new(
+         colorNeutral,
+         100
+     )
+
+
+if trendScore >= 30
+
+    regimeColor :=
+         color.new(
+             colorMarkup,
+             regimeBackgroundTransparency
+         )
+
+else if trendScore <= -30
+
+    regimeColor :=
+         color.new(
+             colorMarkdown,
+             regimeBackgroundTransparency
+         )
+
+else
+
+    regimeColor :=
+         color.new(
+             colorNeutral,
+             97
+         )
+
+
+backgroundColor =
+     color.new(
+         colorNeutral,
+         100
+     )
+
+
+if backgroundMode == "Phase"
+
+    backgroundColor :=
+         color.new(
+             phaseColor,
+             phaseBackgroundTransparency
+         )
+
+else if backgroundMode == "Regime"
+
+    backgroundColor := regimeColor
+
+
+bgcolor(
+     backgroundMode == "Off" ?
+     na :
+     backgroundColor
+)
+
+
+// ============================================================================
+// EMA
+// ============================================================================
+
+plot(
+     showEMA ? emaFast : na,
+     "Fast EMA",
+     color=fastEMAColor,
+     linewidth=fastEMAWidth
+)
+
+plot(
+     showEMA ? emaSlow : na,
+     "Slow EMA",
+     color=slowEMAColor,
+     linewidth=slowEMAWidth
+)
+
+
+// ============================================================================
+// RANGE
+// ============================================================================
+
+plot(
+     showRange and sideways ?
+     rangeHigh :
+     na,
+     "Range High",
+     color=color.new(
+         rangeHighColor,
+         rangeTransparency
+     ),
+     style=plot.style_linebr
+)
+
+plot(
+     showRange and sideways ?
+     rangeLow :
+     na,
+     "Range Low",
+     color=color.new(
+         rangeLowColor,
+         rangeTransparency
+     ),
+     style=plot.style_linebr
+)
+
+
+// ============================================================================
+// DATA WINDOW
+// ============================================================================
+
+plot(trendScore, "Trend Score", display=display.data_window)
+plot(accumulationScore, "Accumulation Pressure", display=display.data_window)
+plot(distributionScore, "Distribution Pressure", display=display.data_window)
+plot(macdHist, "MACD Histogram", display=display.data_window)
+plot(macdBias, "MACD Bias (-2..2)", display=display.data_window)
+plot(obvBias, "OBV Bias (-2..2)", display=display.data_window)
+
+
+// ============================================================================
+// WYCKOFF EVENTS
+// ============================================================================
+
+plotshape(
+     showSpring and plotSpring,
+     title="Confirmed Spring",
+     text="SPRING",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=springColor,
+     textcolor=eventTextColor,
+     size=size.tiny
+)
+
+plotshape(
+     showUTAD and plotUTAD,
+     title="Confirmed UTAD",
+     text="UTAD",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=utadColor,
+     textcolor=eventTextColor,
+     size=size.tiny
+)
+
+plotshape(
+     showSOS and plotSOS,
+     title="SOS",
+     text="SOS",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=sosColor,
+     textcolor=eventTextColor,
+     size=size.tiny
+)
+
+plotshape(
+     showSOW and plotSOW,
+     title="SOW",
+     text="SOW",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=sowColor,
+     textcolor=eventTextColor,
+     size=size.tiny
+)
+
+plotshape(
+     showSweeps and plotSweepLow,
+     title="Sweep Low",
+     text="SWEEP ↓",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=sweepLowColor,
+     textcolor=eventTextColor,
+     size=size.tiny
+)
+
+plotshape(
+     showSweeps and plotSweepHigh,
+     title="Sweep High",
+     text="SWEEP ↑",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=sweepHighColor,
+     textcolor=eventTextColor,
+     size=size.tiny
+)
+
+
+// ============================================================================
+// DIVERGENCES
+//
+// Drawn back on the pivot bar (offset) — they are confirmed and alerted
+// divPivotLen bars later.
+// ============================================================================
+
+plotshape(
+     showDivergences and macdBullDiv,
+     title="MACD Bullish Divergence",
+     text="MACD DIV",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=bullDivColor,
+     textcolor=eventTextColor,
+     size=size.tiny,
+     offset=-divPivotLen
+)
+
+plotshape(
+     showDivergences and macdBearDiv,
+     title="MACD Bearish Divergence",
+     text="MACD DIV",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=bearDivColor,
+     textcolor=eventTextColor,
+     size=size.tiny,
+     offset=-divPivotLen
+)
+
+plotshape(
+     showDivergences and obvBullDiv,
+     title="OBV Bullish Divergence",
+     text="OBV DIV",
+     style=shape.triangleup,
+     location=location.belowbar,
+     color=bullDivColor,
+     size=size.tiny,
+     offset=-divPivotLen
+)
+
+plotshape(
+     showDivergences and obvBearDiv,
+     title="OBV Bearish Divergence",
+     text="OBV DIV",
+     style=shape.triangledown,
+     location=location.abovebar,
+     color=bearDivColor,
+     size=size.tiny,
+     offset=-divPivotLen
+)
+
+
+// ============================================================================
+// PHASE LABELS
+// ============================================================================
+
+plotshape(
+     showPhaseLabels and phaseChanged and phase == 1,
+     title="Accumulation",
+     text="ACC",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=colorAccumulation,
+     textcolor=color.white
+)
+
+plotshape(
+     showPhaseLabels and phaseChanged and phase == 2,
+     title="Markup",
+     text="MARKUP",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=colorMarkup,
+     textcolor=color.white
+)
+
+plotshape(
+     showPhaseLabels and phaseChanged and phase == 3,
+     title="Re-Accumulation",
+     text="RE-ACC",
+     style=shape.labelup,
+     location=location.belowbar,
+     color=colorReAccumulation,
+     textcolor=color.white
+)
+
+plotshape(
+     showPhaseLabels and phaseChanged and phase == 4,
+     title="Distribution",
+     text="DIST",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=colorDistribution,
+     textcolor=color.white
+)
+
+plotshape(
+     showPhaseLabels and phaseChanged and phase == 5,
+     title="Markdown",
+     text="MARKDOWN",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=colorMarkdown,
+     textcolor=color.white
+)
+
+plotshape(
+     showPhaseLabels and phaseChanged and phase == 6,
+     title="Re-Distribution",
+     text="RE-DIST",
+     style=shape.labeldown,
+     location=location.abovebar,
+     color=colorReDistribution,
+     textcolor=color.white
+)
+
+
+// ============================================================================
+// MTF PRIMARY
+// ============================================================================
+
+[
+     primaryPhase,
+     primaryTrend,
+     primaryAcc,
+     primaryDist,
+     primaryCMF,
+     primaryRVOL,
+     primaryRange,
+     primarySweepLow,
+     primarySweepHigh,
+     primarySpring,
+     primaryUTAD,
+     primarySOS,
+     primarySOW,
+     primaryFast,
+     primarySlow,
+     primaryRangeHigh,
+     primaryRangeLow,
+     primaryMACDHist,
+     primaryMACDBias,
+     primaryOBVBias,
+     primaryMACDDiv,
+     primaryOBVDiv,
+     primaryMACDBullDiv,
+     primaryMACDBearDiv,
+     primaryOBVBullDiv,
+     primaryOBVBearDiv
+] = request.security(
+     syminfo.tickerid,
+     higherTF,
+     f_engine(),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+
+// ============================================================================
+// MTF LOCAL
+// ============================================================================
+
+[
+     localPhase,
+     localTrend,
+     localAcc,
+     localDist,
+     localCMF,
+     localRVOL,
+     localRange,
+     localSweepLow,
+     localSweepHigh,
+     localSpring,
+     localUTAD,
+     localSOS,
+     localSOW,
+     localFast,
+     localSlow,
+     localRangeHigh,
+     localRangeLow,
+     localMACDHist,
+     localMACDBias,
+     localOBVBias,
+     localMACDDiv,
+     localOBVDiv,
+     localMACDBullDiv,
+     localMACDBearDiv,
+     localOBVBullDiv,
+     localOBVBearDiv
+] = request.security(
+     syminfo.tickerid,
+     localTF,
+     f_engine(),
+     gaps=barmerge.gaps_off,
+     lookahead=barmerge.lookahead_off
+)
+
+
+// ============================================================================
+// COMBINED BIAS
+// ============================================================================
+
+primaryBull =
+     primaryTrend >= 25 or
+     primaryPhase == 2 or
+     primaryPhase == 3
+
+primaryBear =
+     primaryTrend <= -25 or
+     primaryPhase == 5 or
+     primaryPhase == 6
+
+localBull =
+     localTrend >= 25 or
+     localPhase == 2 or
+     localPhase == 3
+
+localBear =
+     localTrend <= -25 or
+     localPhase == 4 or
+     localPhase == 5 or
+     localPhase == 6
+
+
+string biasName = "NEUTRAL"
+int biasScore = 0
+color biasColor = colorNeutral
+
+
+if primaryBull
+
+    if localBull and localDist < 65
+
+        biasName := "BULLISH"
+        biasScore := 4
+        biasColor := colorMarkup
+
+    else if localBear or localDist >= 65
+
+        biasName := "BULLISH / CAUTION"
+        biasScore := 2
+        biasColor := colorReAccumulation
+
+    else
+
+        biasName := "BULLISH / CAUTION"
+        biasScore := 1
+        biasColor := colorReAccumulation
+
+
+else if primaryBear
+
+    if localBear and localAcc < 65
+
+        biasName := "BEARISH"
+        biasScore := -4
+        biasColor := colorMarkdown
+
+    else if localBull or localAcc >= 65
+
+        biasName := "BEARISH / CAUTION"
+        biasScore := -2
+        biasColor := colorDistribution
+
+    else
+
+        biasName := "BEARISH / CAUTION"
+        biasScore := -1
+        biasColor := colorDistribution
+
+
+else
+
+    if localBull
+
+        biasName := "NEUTRAL / BULLISH"
+        biasScore := 1
+        biasColor := colorReAccumulation
+
+    else if localBear
+
+        biasName := "NEUTRAL / BEARISH"
+        biasScore := -1
+        biasColor := colorDistribution
+
+
+// ---------------------------------------------------------------------------
+// MOMENTUM / VOLUME CONFLUENCE
+//
+// When primary MACD and OBV fully agree, the bias score is nudged
+// one point in their direction (range becomes -5..+5).
+// ---------------------------------------------------------------------------
+
+primaryConfluence =
+     (useMACD ? f_sign(primaryMACDBias) : 0) +
+     f_sign(primaryOBVBias)
+
+confluenceFull =
+     useMACD ? 2 : 1
+
+if primaryConfluence >= confluenceFull
+    biasScore += 1
+else if primaryConfluence <= -confluenceFull
+    biasScore -= 1
+
+
+// ============================================================================
+// SMART MTF ALERT ENGINE v2.4
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// PRIMARY CONTEXT
+// ---------------------------------------------------------------------------
+
+primaryBullishContext =
+     primaryPhase == 2 or
+     primaryPhase == 3 or
+     primaryTrend >= 25
+
+primaryStrongBullishContext =
+     primaryPhase == 2 or
+     primaryPhase == 3 or
+     primaryTrend >= 40
+
+primaryWeakening =
+     primaryTrend < 25 or
+     primaryDist >= 65 or
+     primaryPhase == 4 or
+     primaryPhase == 5 or
+     primaryPhase == 6
+
+
+// ---------------------------------------------------------------------------
+// LOCAL CONTEXT
+// ---------------------------------------------------------------------------
+
+localSOSActive =
+     localSOS == 1
+
+localSOWActive =
+     localSOW == 1
+
+localBullishStructure =
+     localPhase == 2 or
+     localPhase == 3 or
+     localTrend >= 25
+
+localDistribution =
+     localPhase == 4 and
+     localDist >= 65
+
+localStrongDistribution =
+     localPhase == 4 and
+     localDist >= strongDistributionAlertLevel
+
+
+// ---------------------------------------------------------------------------
+// LOCAL MACD / OBV AGREEMENT
+// ---------------------------------------------------------------------------
+
+localMomentumBull =
+     (not useMACD or localMACDBias >= 1) and
+     localOBVBias >= 0
+
+localMomentumBear =
+     (not useMACD or localMACDBias <= -1) and
+     localOBVBias <= 0
+
+localBearDivergence =
+     localMACDDiv == -1 or
+     localOBVDiv == -1
+
+bullConfirmOk =
+     not smartAlertConfirm or
+     localMomentumBull
+
+bearConfirmOk =
+     not smartAlertConfirm or
+     localMomentumBear
+
+
+// ---------------------------------------------------------------------------
+// STRONG BULLISH SETUP
+// ---------------------------------------------------------------------------
+
+strongBullishSetupRaw =
+     enableStrongBullAlert and
+     primaryStrongBullishContext and
+     (
+         localPhase == 2 or
+         (
+             localPhase == 3 and
+             localAcc >= 65
+         ) or
+         localSOSActive
+     ) and
+     localDist < 65 and
+     bullConfirmOk
+
+
+strongBullishSetup =
+     strongBullishSetupRaw and
+     not strongBullishSetupRaw[1]
+
+
+// ---------------------------------------------------------------------------
+// RISK WARNING
+//
+// Classic trigger: local Distribution under a bullish primary.
+// Early trigger: local bearish MACD / OBV divergence with momentum
+// already rolling over and distribution pressure building.
+// ---------------------------------------------------------------------------
+
+earlyDivergenceRisk =
+     smartAlertConfirm and
+     localBearDivergence and
+     localMomentumBear and
+     localDist >= 50
+
+riskWarningRaw =
+     enableRiskAlert and
+     primaryBullishContext and
+     (
+         localDistribution or
+         earlyDivergenceRisk
+     )
+
+
+riskWarning =
+     riskWarningRaw and
+     not riskWarningRaw[1]
+
+
+// ---------------------------------------------------------------------------
+// BEARISH REVERSAL WARNING
+// ---------------------------------------------------------------------------
+
+bearishReversalRaw =
+     enableBearReversalAlert and
+     primaryWeakening and
+     localStrongDistribution and
+     localSOWActive and
+     bearConfirmOk
+
+
+bearishReversalWarning =
+     bearishReversalRaw and
+     not bearishReversalRaw[1]
+
+
+// ---------------------------------------------------------------------------
+// BULLISH RECOVERY
+//
+// Requires a fresh local SOS after previous local weakness.
+// This avoids duplicating ordinary Strong Bullish alerts.
+// ---------------------------------------------------------------------------
+
+previousLocalWeakness =
+     localDist[1] >= 65 or
+     localPhase[1] == 4 or
+     localPhase[1] == 6 or
+     localTrend[1] <= 0
+
+
+bullishRecoveryRaw =
+     enableBullRecoveryAlert and
+     primaryBullishContext and
+     localSOSActive and
+     localDist < 65 and
+     previousLocalWeakness and
+     bullConfirmOk
+
+
+bullishRecovery =
+     bullishRecoveryRaw and
+     not bullishRecoveryRaw[1]
+
+
+// ============================================================================
+// SMART ALERT STATUS
+// ============================================================================
+
+string smartAlertName = "NONE"
+color smartAlertColor = colorNeutral
+
+
+if bearishReversalWarning
+
+    smartAlertName := "BEARISH REVERSAL"
+    smartAlertColor := colorMarkdown
+
+else if riskWarning
+
+    smartAlertName := "RISK WARNING"
+    smartAlertColor := colorDistribution
+
+else if bullishRecovery
+
+    smartAlertName := "BULLISH RECOVERY"
+    smartAlertColor := colorReAccumulation
+
+else if strongBullishSetup
+
+    smartAlertName := "STRONG BULLISH"
+    smartAlertColor := colorMarkup
+
+
+// ============================================================================
+// DASHBOARD
+// ============================================================================
+
+var table dashboard =
+     table.new(
+         dashboardPosition,
+         3,
+         16,
+         frame_color=dashboardBorderColor,
+         frame_width=1,
+         border_color=dashboardBorderColor,
+         border_width=1
+     )
+
+
+dashboardBG =
+     color.new(
+         dashboardBackground,
+         dashboardTransparency
+     )
+
+
+if barstate.islast and showDashboard
+
+    // ------------------------------------------------------------------------
+    // HEADER
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         0,
+         "MARKET PHASE v2.4",
+         bgcolor=dashboardBG,
+         text_color=dashboardHeaderColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         0,
+         timeframe.period,
+         bgcolor=color.new(phaseColor, 10),
+         text_color=color.white,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         0,
+         f_phaseName(phase),
+         bgcolor=color.new(phaseColor, 10),
+         text_color=color.white,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // TREND
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         1,
+         "Trend Score",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         1,
+         str.tostring(trendScore),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         1,
+         f_trendName(trendScore),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // ACCUMULATION PRESSURE
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         2,
+         "Accum. Pressure",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         2,
+         str.tostring(accumulationScore) + "/100",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         2,
+         f_pressureName(accumulationScore),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // DISTRIBUTION PRESSURE
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         3,
+         "Distrib. Pressure",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         3,
+         str.tostring(distributionScore) + "/100",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         3,
+         f_pressureName(distributionScore),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // CMF
+    // ------------------------------------------------------------------------
+
+    string flowText = "FLAT"
+
+    if cmf > 0
+        flowText := "BUY FLOW"
+    else if cmf < 0
+        flowText := "SELL FLOW"
+
+
+    table.cell(
+         dashboard,
+         0,
+         4,
+         "CMF",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         4,
+         str.tostring(cmf, "#.###"),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         4,
+         flowText,
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // MACD
+    // ------------------------------------------------------------------------
+
+    string macdHistText = "—"
+
+    if useMACD
+        macdHistText :=
+             (macdHist > macdHist[1] ? "HIST ▲ " : "HIST ▼ ") +
+             f_divName(macdDivState)
+
+
+    table.cell(
+         dashboard,
+         0,
+         5,
+         "MACD",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         5,
+         useMACD ? f_macdName(macdBias) : "OFF",
+         bgcolor=useMACD and macdBias != 0 ?
+             color.new(macdBias > 0 ? colorMarkup : colorMarkdown, 30) :
+             dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         5,
+         macdHistText,
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // OBV
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         6,
+         "OBV",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         6,
+         f_obvName(obvBias),
+         bgcolor=obvBias != 0 ?
+             color.new(obvBias > 0 ? colorMarkup : colorMarkdown, 30) :
+             dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         6,
+         obvDivEnabled ? f_divName(obvDivState) : "—",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // RANGE / RVOL
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         7,
+         "Trading Range",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         7,
+         sideways ? "YES" : "NO",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         7,
+         "RVOL " + str.tostring(relativeVolume, "#.##") + "x",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // PRIMARY
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         8,
+         higherTF + " PRIMARY",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         8,
+         f_phaseName(primaryPhase),
+         bgcolor=color.new(f_phaseColor(primaryPhase), 10),
+         text_color=color.white,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         8,
+         "T " + str.tostring(primaryTrend) +
+         "  M" + f_signChar(useMACD ? primaryMACDBias : 0) +
+         " O" + f_signChar(primaryOBVBias),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // PRIMARY PRESSURE
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         9,
+         "Primary Acc / Dist",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         9,
+         str.tostring(primaryAcc),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         9,
+         str.tostring(primaryDist),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // LOCAL
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         10,
+         localTF + " LOCAL",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         10,
+         f_phaseName(localPhase),
+         bgcolor=color.new(f_phaseColor(localPhase), 10),
+         text_color=color.white,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         10,
+         "T " + str.tostring(localTrend) +
+         "  M" + f_signChar(useMACD ? localMACDBias : 0) +
+         " O" + f_signChar(localOBVBias),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // LOCAL PRESSURE
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         11,
+         "Local Acc / Dist",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         11,
+         str.tostring(localAcc),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         11,
+         str.tostring(localDist),
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // COMBINED BIAS
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         12,
+         "COMBINED BIAS",
+         bgcolor=dashboardBG,
+         text_color=dashboardHeaderColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         12,
+         biasName,
+         bgcolor=color.new(biasColor, 5),
+         text_color=color.white,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         12,
+         str.tostring(biasScore),
+         bgcolor=color.new(biasColor, 5),
+         text_color=color.white,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // EVENTS
+    // ------------------------------------------------------------------------
+
+    string eventsText = ""
+
+    if spring
+        eventsText += "SPRING "
+
+    if utad
+        eventsText += "UTAD "
+
+    if sos
+        eventsText += "SOS "
+
+    if sow
+        eventsText += "SOW "
+
+    if eventsText == ""
+        eventsText := "—"
+
+
+    string divText = ""
+
+    if macdDivState > 0
+        divText += "MACD▲ "
+    else if macdDivState < 0
+        divText += "MACD▼ "
+
+    if obvDivState > 0
+        divText += "OBV▲"
+    else if obvDivState < 0
+        divText += "OBV▼"
+
+    if divText == ""
+        divText := "—"
+
+
+    table.cell(
+         dashboard,
+         0,
+         13,
+         "EVENTS / DIV",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         13,
+         eventsText,
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         13,
+         divText,
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+    // ------------------------------------------------------------------------
+    // REALTIME MODE
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         14,
+         "Realtime Data",
+         bgcolor=dashboardBG,
+         text_color=dashboardLabelColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         14,
+         useConfirmedBars ? "CONFIRMED" : "LIVE",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         14,
+         "",
+         bgcolor=dashboardBG
+    )
+
+
+    // ------------------------------------------------------------------------
+    // SMART ALERT
+    // ------------------------------------------------------------------------
+
+    table.cell(
+         dashboard,
+         0,
+         15,
+         "SMART ALERT",
+         bgcolor=dashboardBG,
+         text_color=dashboardHeaderColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         1,
+         15,
+         smartAlertName,
+         bgcolor=smartAlertName == "NONE" ?
+             dashboardBG :
+             color.new(smartAlertColor, 5),
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+    table.cell(
+         dashboard,
+         2,
+         15,
+         smartAlertConfirm ? "M/O FILTER" : "",
+         bgcolor=dashboardBG,
+         text_color=dashboardValueColor,
+         text_size=dashboardTextSize
+    )
+
+
+// ============================================================================
+// STANDARD ALERTS
+// ============================================================================
+
+alertcondition(
+     plotSpring,
+     "Confirmed Spring",
+     "Market Phase Detector v2.4: Confirmed SPRING"
+)
+
+alertcondition(
+     plotUTAD,
+     "Confirmed UTAD",
+     "Market Phase Detector v2.4: Confirmed UTAD"
+)
+
+alertcondition(
+     plotSOS,
+     "Sign of Strength",
+     "Market Phase Detector v2.4: SOS"
+)
+
+alertcondition(
+     plotSOW,
+     "Sign of Weakness",
+     "Market Phase Detector v2.4: SOW"
+)
+
+alertcondition(
+     phaseChanged and phase == 1,
+     "Accumulation",
+     "Market Phase Detector v2.4: ACCUMULATION"
+)
+
+alertcondition(
+     phaseChanged and phase == 2,
+     "Markup",
+     "Market Phase Detector v2.4: MARKUP"
+)
+
+alertcondition(
+     phaseChanged and phase == 3,
+     "Re-Accumulation",
+     "Market Phase Detector v2.4: RE-ACCUMULATION"
+)
+
+alertcondition(
+     phaseChanged and phase == 4,
+     "Distribution",
+     "Market Phase Detector v2.4: DISTRIBUTION"
+)
+
+alertcondition(
+     phaseChanged and phase == 5,
+     "Markdown",
+     "Market Phase Detector v2.4: MARKDOWN"
+)
+
+alertcondition(
+     phaseChanged and phase == 6,
+     "Re-Distribution",
+     "Market Phase Detector v2.4: RE-DISTRIBUTION"
+)
+
+
+// ============================================================================
+// MACD / OBV ALERTS
+// ============================================================================
+
+alertcondition(
+     macdBullDiv,
+     "MACD Bullish Divergence",
+     "Market Phase Detector v2.4: MACD BULLISH DIVERGENCE confirmed"
+)
+
+alertcondition(
+     macdBearDiv,
+     "MACD Bearish Divergence",
+     "Market Phase Detector v2.4: MACD BEARISH DIVERGENCE confirmed"
+)
+
+alertcondition(
+     obvBullDiv,
+     "OBV Bullish Divergence",
+     "Market Phase Detector v2.4: OBV BULLISH DIVERGENCE confirmed"
+)
+
+alertcondition(
+     obvBearDiv,
+     "OBV Bearish Divergence",
+     "Market Phase Detector v2.4: OBV BEARISH DIVERGENCE confirmed"
+)
+
+alertcondition(
+     useMACD and macdBullCross,
+     "MACD Bullish Cross",
+     "Market Phase Detector v2.4: MACD crossed ABOVE signal"
+)
+
+alertcondition(
+     useMACD and macdBearCross,
+     "MACD Bearish Cross",
+     "Market Phase Detector v2.4: MACD crossed BELOW signal"
+)
+
+
+// ============================================================================
+// SMART MTF ALERTS
+// ============================================================================
+
+alertcondition(
+     strongBullishSetup,
+     "MTF Strong Bullish Setup",
+     "MPD v2.4: STRONG BULLISH SETUP — Primary market is bullish and local timeframe confirms strength (MACD / OBV agree)."
+)
+
+alertcondition(
+     riskWarning,
+     "MTF Risk Warning",
+     "MPD v2.4: RISK WARNING — Primary market remains bullish but local timeframe shows Distribution or bearish MACD / OBV divergence."
+)
+
+alertcondition(
+     bearishReversalWarning,
+     "MTF Bearish Reversal Warning",
+     "MPD v2.4: BEARISH REVERSAL WARNING — Strong local Distribution plus SOW, bearish MACD / OBV and weakening Primary structure."
+)
+
+alertcondition(
+     bullishRecovery,
+     "MTF Bullish Recovery",
+     "MPD v2.4: BULLISH RECOVERY — Primary context remains bullish and local timeframe produced SOS after previous weakness (MACD / OBV agree)."
+)
