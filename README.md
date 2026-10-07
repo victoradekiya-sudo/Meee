@@ -52,3 +52,11 @@ alert conditions exceeded 64. Each timeframe now returns only the fields the
 bias, smart alerts and dashboard use (phase, trend, acc/dist pressure,
 SOS/SOW, MACD/OBV bias and divergence state), packed into two integers by
 `f_mtfPacked()` and decoded with `f_mtfUnpack()`. Behaviour is unchanged.
+
+## Phase hold during confirmation
+
+While a new raw phase is waiting `Bars Required To Confirm Phase` bars, the
+detector now keeps showing the last confirmed phase instead of dropping to
+NEUTRAL. Phase changes go directly from one phase to the next (e.g. MARKUP →
+RE-ACCUMULATION), and a one-bar blip no longer re-fires the same phase-change
+label or alert. NEUTRAL now appears only when NEUTRAL itself is confirmed.

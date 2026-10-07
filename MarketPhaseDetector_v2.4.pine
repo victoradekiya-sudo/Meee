@@ -1609,7 +1609,10 @@ f_engine() =>
                  rawPhase == rawPhase[i]
 
 
-    stablePhase = 0
+    // Hold the last confirmed phase while a new one is still being
+    // confirmed, instead of dropping to NEUTRAL for the transition bars.
+    // A one-bar blip in rawPhase no longer re-fires phase-change alerts.
+    var int stablePhase = 0
 
     if phaseStable
         stablePhase := rawPhase
