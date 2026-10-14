@@ -1,0 +1,11 @@
+{
+  "name": "credit-chess",
+  "version": "0.1.0",
+  "description": "Chess where every move costs credits: standard chess rules plus a Monopoly-style economy.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test test/*.test.js"
+  }
+}
