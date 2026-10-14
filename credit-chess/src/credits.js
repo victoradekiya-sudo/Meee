@@ -24,6 +24,18 @@ export const DEFAULT_RULES = {
     threatBonus: 0.5,        // pawn lands attacking a higher-ranked piece
     higherCaptureShare: 0.5, // pawn captures a higher-ranked piece: earns this share of its value
   },
+  // Optional Monopoly-style house rules, switched on per game.
+  house: {
+    // Property: the first player to land a piece on one may buy it. Any
+    // enemy piece that later ends a move there pays the owner rent.
+    properties: [
+      { group: 'Prime', squares: ['d4', 'e4', 'd5', 'e5'], price: 6, rent: 3 },
+      { group: 'Outpost', squares: ['c3', 'f3', 'c6', 'f6'], price: 4, rent: 2 },
+    ],
+    // Bonus squares pay out once, to the first piece that lands on them.
+    bonusSquares: ['b4', 'g4', 'b5', 'g5'],
+    bonusAmount: 3,
+  },
 };
 
 // Rank used for "higher-ranked" comparisons; the king outranks everything.

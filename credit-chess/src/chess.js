@@ -98,10 +98,31 @@ export function attackedSquares(board, from) {
   return out;
 }
 
+// Looks outward from `target` for each kind of attacker rather than
+// generating every enemy piece's attacks.
 export function isSquareAttacked(board, target, byColor) {
-  for (let s = 0; s < 64; s++) {
-    const p = board[s];
-    if (p && colorOf(p) === byColor && attackedSquares(board, s).includes(target)) return true;
+  const own = (t) => (byColor === WHITE ? t.toUpperCase() : t);
+  const pawnRank = byColor === WHITE ? -1 : 1;
+  for (const df of [-1, 1]) {
+    const s = offset(target, df, pawnRank);
+    if (s >= 0 && board[s] === own('p')) return true;
+  }
+  for (const [steps, t] of [[KNIGHT_STEPS, 'n'], [KING_STEPS, 'k']]) {
+    for (const [df, dr] of steps) {
+      const s = offset(target, df, dr);
+      if (s >= 0 && board[s] === own(t)) return true;
+    }
+  }
+  for (const [dirs, t] of [[ROOK_DIRS, 'r'], [BISHOP_DIRS, 'b']]) {
+    for (const [df, dr] of dirs) {
+      let s = target;
+      while ((s = offset(s, df, dr)) >= 0) {
+        const p = board[s];
+        if (!p) continue;
+        if (p === own(t) || p === own('q')) return true;
+        break;
+      }
+    }
   }
   return false;
 }

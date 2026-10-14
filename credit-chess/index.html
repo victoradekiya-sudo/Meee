@@ -63,7 +63,7 @@
   .brand { min-width: 0; }
   h1 { font: 800 clamp(30px, 5vw, 44px)/1 var(--font-display); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
   h1 em { font-style: normal; color: var(--accent); }
-  .tag { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 52ch; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; }
   .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 7px 12px; font-weight: 500; }
   .btn:hover:not(:disabled) { border-color: var(--accent); }
@@ -112,7 +112,7 @@
            font-variant-emoji: text; pointer-events: none; user-select: none; }
   .piece.w { color: var(--piece-white); -webkit-text-stroke: .28cqi var(--piece-edge); paint-order: stroke fill; }
   .piece.b { color: var(--piece-black); -webkit-text-stroke: .12cqi var(--piece-black); }
-  .coord { position: absolute; font: 500 2cqi/1 var(--font-num); color: var(--sq-dark); pointer-events: none; }
+  .coord { position: absolute; font: 500 max(8px, 2cqi)/1 var(--font-num); color: var(--sq-dark); pointer-events: none; }
   .sq.dark .coord { color: var(--sq-light); }
   .coord.file { right: .6cqi; bottom: .5cqi; }
   .coord.rank { left: .6cqi; top: .5cqi; }
@@ -120,7 +120,7 @@
   .target::after { content: ""; position: absolute; width: 3.4cqi; height: 3.4cqi; border-radius: 50%; background: var(--ink); opacity: .35; }
   .target.capture::after { width: 10.6cqi; height: 10.6cqi; background: transparent; border: .7cqi solid var(--ink); opacity: .35; }
   .target.broke::after { background: transparent; border: .5cqi dashed var(--burn); opacity: .9; }
-  .price { position: absolute; right: .4cqi; top: .4cqi; z-index: 1; font: 600 2.1cqi/1 var(--font-num); padding: .35cqi .55cqi;
+  .price { position: absolute; right: .4cqi; top: .4cqi; z-index: 1; font: 600 max(9px, 2.1cqi)/1 var(--font-num); padding: .35cqi .55cqi;
            border-radius: .6cqi; background: var(--surface); color: var(--burn); pointer-events: none; }
   .price.up { color: var(--earn); }
   .target.broke .price { text-decoration: line-through; color: var(--muted); }
@@ -128,7 +128,9 @@
 
   .promo { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--ink) 55%, transparent); }
   .promo-card { background: var(--surface); border-radius: 8px; padding: 14px; display: grid; gap: 10px; text-align: center; }
-  .promo-card p { margin: 0; font-weight: 600; }
+  .promo-card p { margin: 0; font-weight: 600; max-width: 34ch; }
+  .promo-card .sub { font-weight: 400; color: var(--muted); font-size: 14px; }
+  .promo-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
   .promo-row { display: flex; gap: 8px; }
   .promo-row button { width: 15cqi; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 6px; background: var(--sq-light); display: grid; place-items: center; }
   .promo-row .piece { font-size: 10cqi; }
@@ -170,17 +172,110 @@
   .rule-notes { margin: 12px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; display: grid; gap: 6px; max-width: 65ch; }
   .rules-scroll { overflow-x: auto; }
 
-  @media (prefers-reduced-motion: reduce) { .meter span { transition: none; } }
+
+  /* Mode bar, new-game panel */
+  .modebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 14px; color: var(--muted); }
+  .modebar strong { color: var(--ink); font-weight: 600; }
+  .modebar .code { font: 600 15px/1 var(--font-num); letter-spacing: .12em; color: var(--ink); background: var(--surface);
+                   border: 1px dashed var(--gold); border-radius: 6px; padding: 5px 8px; user-select: all; }
+  .modebar .live { display: inline-flex; align-items: center; gap: 6px; }
+  .modebar .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .btn.small { padding: 4px 9px; font-size: 13px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+
+  .setup { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  .setup form { display: grid; gap: 18px; }
+  .setup fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }
+  .setup legend { font: 600 12px/1 var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; padding: 0; }
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--line); border-radius: 8px; padding: 12px; cursor: pointer; background: var(--paper); }
+  .opt:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .opt:has(input:disabled) { opacity: .5; cursor: default; }
+  .opt input { margin-top: 3px; accent-color: var(--accent); }
+  .opt span { display: grid; gap: 2px; min-width: 0; }
+  .opt small, .check small { color: var(--muted); font-size: 13px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+  .check input { margin-top: 4px; accent-color: var(--accent); }
+  .check span { display: grid; gap: 2px; min-width: 0; }
+  .fields { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; }
+  .fields label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  .fields select, .fields input { font: 500 15px var(--font-body); color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; }
+  .fields input { font-family: var(--font-num); letter-spacing: .12em; text-transform: uppercase; width: 9em; }
+  .hint { margin: 0; color: var(--muted); font-size: 14px; max-width: 65ch; }
+  .hint.error { color: var(--burn); }
+  .setup-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+  /* Property and bonus markers */
+  .tag { position: absolute; left: .45cqi; bottom: .45cqi; z-index: 1; font: 600 max(9px, 1.9cqi)/1 var(--font-num); padding: .35cqi .5cqi;
+         border-radius: .6cqi; pointer-events: none; }
+  .tag.prime { background: var(--gold); color: var(--surface); }
+  .tag.outpost { background: var(--accent); color: var(--surface); }
+  .tag.owner-w { background: var(--piece-white); color: var(--piece-edge); box-shadow: 0 0 0 .25cqi var(--piece-edge); }
+  .tag.owner-b { background: var(--piece-black); color: var(--piece-white); box-shadow: 0 0 0 .25cqi var(--piece-white); }
+  .tag.bonus { background: var(--surface); color: var(--gold); box-shadow: 0 0 0 .3cqi var(--gold); border-radius: 99px; }
+  .ledger .bought { font: 600 10px/1 var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--gold); margin-left: 6px; }
+  .house-list { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; display: grid; gap: 6px; max-width: 65ch; }
+  .panel h3 { font: 600 15px/1.3 var(--font-body); margin: 18px 0 0; }
+  .panel h3 small { font-weight: 500; color: var(--muted); }
+  .quote .note { margin-top: 10px; font-size: 14px; }
+
+  @media (prefers-reduced-motion: reduce) { .meter span { transition: none; } .modebar .live::before { animation: none; } }
 </style>
 
 <main class="app">
   <header class="top">
     <div class="brand">
       <h1>Credit <em>Chess</em></h1>
-      <p class="tag">Standard chess, but every move costs credits. Captures and checks pay you back. Run out of credits and you lose.</p>
+      <p class="lede">Standard chess, but every move costs credits. Captures and checks pay you back. Run out of credits and you lose.</p>
     </div>
     <div class="actions" id="actions"></div>
   </header>
+
+  <div class="modebar" id="modebar" aria-live="polite"></div>
+
+  <section class="setup" id="setup" hidden aria-label="New game">
+    <form id="setup-form">
+      <fieldset>
+        <legend>Opponent</legend>
+        <div class="choices">
+          <label class="opt"><input type="radio" name="opponent" id="opp-local" value="local" checked>
+            <span><strong>Friend on this device</strong><small>Take turns on one screen.</small></span></label>
+          <label class="opt"><input type="radio" name="opponent" id="opp-ai" value="ai">
+            <span><strong>Computer</strong><small>Plays for credits as well as pieces.</small></span></label>
+          <label class="opt"><input type="radio" name="opponent" id="opp-online" value="online">
+            <span><strong>Friend online</strong><small>Each of you plays from your own device.</small></span></label>
+        </div>
+      </fieldset>
+
+      <div class="fields" id="ai-options" hidden>
+        <label>You play <select id="ai-color"><option value="w">White</option><option value="b">Black</option><option value="random">Random</option></select></label>
+        <label>Level <select id="ai-level"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></label>
+      </div>
+
+      <div id="online-options" hidden>
+        <p class="hint" id="online-note"></p>
+        <div class="fields" id="join-fields">
+          <label>Have a code from a friend? <input id="join-code" maxlength="8" autocomplete="off" spellcheck="false" placeholder="ABC234"></label>
+          <button type="button" class="btn" id="join-btn">Join their game</button>
+        </div>
+      </div>
+
+      <fieldset id="house-fields">
+        <legend>House rules</legend>
+        <label class="check"><input type="checkbox" id="house-properties">
+          <span><strong>Property and rent</strong><small id="house-properties-desc"></small></span></label>
+        <label class="check"><input type="checkbox" id="house-bonuses">
+          <span><strong>Bonus squares</strong><small id="house-bonuses-desc"></small></span></label>
+      </fieldset>
+
+      <p class="hint error" id="setup-error" hidden></p>
+      <div class="setup-actions">
+        <button type="button" class="btn" id="setup-cancel">Cancel</button>
+        <button type="submit" class="btn primary" id="setup-start">Start game</button>
+      </div>
+    </form>
+  </section>
 
   <div class="status" id="status" role="status" hidden></div>
 
@@ -189,7 +284,7 @@
       <div class="acct" id="acct-top"></div>
       <div class="board-wrap">
         <div class="board" id="board" role="grid" aria-label="Chess board"></div>
-        <div class="promo" id="promo" hidden></div>
+        <div class="promo" id="dialog" hidden></div>
       </div>
       <div class="acct" id="acct-bottom"></div>
     </section>
@@ -203,7 +298,7 @@
         <h2>Ledger</h2>
         <div class="ledger-scroll" id="ledger-scroll">
           <table class="ledger">
-            <thead><tr><th>#</th><th>Move</th><th>Fee</th><th>Earned</th><th>Balance</th></tr></thead>
+            <thead><tr><th>#</th><th>Move</th><th>Spent</th><th>Earned</th><th>Balance</th></tr></thead>
             <tbody id="ledger"></tbody>
           </table>
         </div>
@@ -212,6 +307,7 @@
         <h2>Price list</h2>
         <div class="rules-scroll"><table class="rules" id="rules"></table></div>
         <ul class="rule-notes" id="rule-notes"></ul>
+        <div id="house-rules"></div>
       </section>
     </aside>
   </div>

@@ -8,11 +8,26 @@ move is bankrupt and loses.
 
 ```sh
 cd credit-chess
-npm start        # http://localhost:8080 — two players, one screen
-npm test         # rules engine + credit economy tests
+npm start        # http://localhost:8080
+npm test         # rules engine, credit economy, house rules and computer player
 ```
 
 No dependencies or build step; it's plain ES modules. Node 18+ for the server and tests.
+
+**New game** offers three opponents:
+
+- **Friend on this device**: take turns on one screen.
+- **Computer**: Easy, Medium or Hard. It searches ahead and scores positions in
+  credits, so it weighs cash, material and property against each other and
+  avoids going bankrupt. It runs in a Web Worker, so the board stays responsive.
+- **Friend online**: one player creates a game and sends the 6-character code;
+  the other joins with it. The creator plays White, and anyone joining a full
+  game watches. Each client replays and checks every move with the same rules
+  engine. Under `npm start` the server also rejects illegal or out-of-turn
+  moves. Games are kept in the server's memory, so they're lost when it stops.
+  To play across the internet, run the server somewhere both players can reach.
+  On claude.ai, the published page stores games in its shared database instead.
+  Both players need Contributor (or higher) access to the page.
 
 ## Rules
 
@@ -36,6 +51,18 @@ played and receive its earnings after.
 - Everything else is standard chess (castling, en passant, promotion,
   checkmate, stalemate, threefold repetition, fifty-move rule, dead positions).
 
+## House rules (optional, chosen per game)
+
+- **Property and rent.** Prime squares (d4 e4 d5 e5) cost 6 and charge 3
+  rent. Outpost squares (c3 f3 c6 f6) cost 4 and charge 2 rent. When your
+  piece lands on an unowned one you may buy it. Any enemy piece that later
+  ends a move there pays you rent. Rent counts towards what a move costs, so
+  it can bankrupt you. Ownership is permanent.
+- **Bonus squares.** b4 g4 b5 g5 each pay 3 credits once, to the first piece
+  that lands there.
+
+Squares, prices, rents and the bonus amount are in `DEFAULT_RULES.house`.
+
 ## Decisions to confirm
 
 The original brief fixed the pawn and knight rules and said "do likewise for
@@ -57,5 +84,8 @@ are easy to change in `src/credits.js` (`DEFAULT_RULES`):
 
 - `src/chess.js` — chess rules engine (verified against standard perft counts)
 - `src/credits.js` — the price list and `evaluateMove()` (cost + earnings)
-- `src/game.js` — game state: balances, ledger, bankruptcy and other results
+- `src/game.js` — game state: balances, property, ledger, results, replay
+- `src/ai.js`, `src/ai-worker.js` — computer player (alpha-beta + capture search)
+- `src/online.js` — online play over claude.ai's shared database or the local server
+- `scripts/serve.js` — static server + online game API (server-sent events)
 - `src/ui.js`, `index.html` — browser UI
