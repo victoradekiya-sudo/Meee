@@ -8,7 +8,7 @@ import {
 export const PIECE_NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
 
 export const DEFAULT_RULES = {
-  startingCredits: 100,
+  startingCredits: 50,
   pieces: {
     // value: what the piece is worth when captured (and its rank).
     // moveCost: credits burned every time the piece moves.

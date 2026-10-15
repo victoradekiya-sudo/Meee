@@ -17,14 +17,17 @@ export const LEVELS = {
   hard: { depth: 2, quiet: 4, noise: 0, label: 'Hard' },
 };
 
-// Cash is worth more when you're running low: bankruptcy loses the game.
-function cashWorth(c) {
-  return c < 20 ? c - (20 - c) * 1.5 : c;
+// Cash is worth more when you're running low (under a fifth of the
+// starting stake): bankruptcy loses the game.
+function cashWorth(c, start) {
+  const low = start * 0.2;
+  return c < low ? c - (low - c) * 1.5 : c;
 }
 
 // Score from `color`'s point of view.
 export function evaluate(game, color) {
-  let score = cashWorth(game.credits[color]) - cashWorth(game.credits[opponent(color)]);
+  const start = game.rules.startingCredits;
+  let score = cashWorth(game.credits[color], start) - cashWorth(game.credits[opponent(color)], start);
   game.state.board.forEach((p, sq) => {
     if (!p) return;
     let worth = PIECE_WORTH[typeOf(p)];
@@ -38,9 +41,9 @@ export function evaluate(game, color) {
   return score;
 }
 
-// Buy property when there's a comfortable cushion left afterwards.
+// Buy property when at least 30% of the starting stake is left afterwards.
 export function wantsToBuy(game, move) {
-  return move.canBuy && game.credits[game.state.turn] + move.net - move.buyPrice >= 30;
+  return move.canBuy && game.credits[game.state.turn] + move.net - move.buyPrice >= game.rules.startingCredits * 0.3;
 }
 
 // Captures and earners first so alpha-beta prunes more.

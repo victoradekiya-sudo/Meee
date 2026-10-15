@@ -8,20 +8,20 @@ const play = (game, ...moves) => moves.reduce((g, m) => {
   return playMove(g, { from: sq(from), to: sq(to), promotion: m[4] });
 }, game);
 
-test('both players start with 100 credits', () => {
+test('both players start with 50 credits', () => {
   const g = createGame();
-  assert.deepEqual(g.credits, { w: 100, b: 100 });
+  assert.deepEqual(g.credits, { w: 50, b: 50 });
   assert.equal(g.result, null);
 });
 
 test('moves deduct cost and add earnings for the mover only', () => {
   const g = play(createGame(), 'e2e4', 'g8f6', 'e4e5');
   // White: -1 (e4), -1 +0.5 (e5 threatens the f6 knight). Black: -2 (Nf6).
-  assert.deepEqual(g.credits, { w: 98.5, b: 98 });
+  assert.deepEqual(g.credits, { w: 48.5, b: 48 });
   assert.equal(g.history.length, 3);
   assert.equal(g.history[2].san, 'e5');
   assert.deepEqual([g.history[2].spent, g.history[2].earned], [1, 0.5]);
-  assert.equal(g.history[2].balance, 98.5);
+  assert.equal(g.history[2].balance, 48.5);
 });
 
 test('checkmate ends the game', () => {
@@ -30,7 +30,7 @@ test('checkmate ends the game', () => {
   assert.equal(g.result.winner, 'b');
   assert.equal(g.history.at(-1).san, 'Qh4#');
   // Queen move costs 8 and the check earns 9.
-  assert.equal(g.credits.b, 100 - 1 - 8 + 9);
+  assert.equal(g.credits.b, 50 - 1 - 8 + 9);
   assert.throws(() => play(g, 'a2a3'), /over/);
 });
 
@@ -99,7 +99,7 @@ test('landing on unowned property offers it for sale', () => {
   assert.equal(move.canBuy, true);
   const bought = playBuy(g, 'g1f3');
   assert.equal(bought.owners[sq('f3')], 'w');
-  assert.equal(bought.credits.w, 100 - 2 - 4);
+  assert.equal(bought.credits.w, 50 - 2 - 4);
   assert.equal(bought.history[0].spent, 6);
   // Declining leaves it unowned.
   assert.equal(play(g, 'g1f3').owners[sq('f3')], undefined);
@@ -108,13 +108,13 @@ test('landing on unowned property offers it for sale', () => {
 test('enemy pieces landing on owned property pay rent to the owner', () => {
   // White owns e4 (Prime: rent 3). Black's pawn captures onto it.
   let g = playBuy(createGame({ house }), 'e2e4');
-  assert.equal(g.credits.w, 100 - 1 - 6);
+  assert.equal(g.credits.w, 50 - 1 - 6);
   g = play(g, 'd7d5');
   const capture = availableMoves(play(g, 'a2a3')).find((m) => m.to === sq('e4'));
   assert.equal(capture.cost, 1 + 3);
   g = play(g, 'a2a3', 'd5e4');
-  assert.equal(g.credits.b, 100 - 1 - 1 - 3);
-  assert.equal(g.credits.w, 100 - 1 - 6 - 1 + 3);
+  assert.equal(g.credits.b, 50 - 1 - 1 - 3);
+  assert.equal(g.credits.w, 50 - 1 - 6 - 1 + 3);
   assert.equal(g.history.at(-1).rent, 3);
   assert.deepEqual(accountSummary(g, 'w'), { spent: 8, earned: 3 });
   // Own pieces never pay rent.
@@ -132,7 +132,7 @@ test('rent counts towards affordability and bankruptcy', () => {
 
 test('bonus squares pay once', () => {
   let g = play(createGame({ house }), 'e2e4', 'e7e5', 'f1b5');
-  assert.equal(g.credits.w, 100 - 1 - 2 + 3);
+  assert.equal(g.credits.w, 50 - 1 - 2 + 3);
   assert.equal(g.bonuses.includes(sq('b5')), false);
   g = play(g, 'a7a6', 'b5c4', 'a6a5', 'c4b5');
   assert.equal(g.history.at(-1).earned, 0);

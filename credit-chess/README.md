@@ -31,7 +31,7 @@ No dependencies or build step; it's plain ES modules. Node 18+ for the server an
 
 ## Rules
 
-Each player starts with **100 credits**. You pay a move's fee before it is
+Each player starts with **50 credits**. You pay a move's fee before it is
 played and receive its earnings after.
 
 | Piece  | Value | Move fee | Capture earns            | Check earns |

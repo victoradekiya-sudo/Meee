@@ -12,8 +12,8 @@ function evaluate(fen, from, to, rules) {
 }
 const kinds = (ev) => ev.gains.map((g) => g.kind);
 
-test('starting credits are 100', () => {
-  assert.equal(DEFAULT_RULES.startingCredits, 100);
+test('starting credits are 50', () => {
+  assert.equal(DEFAULT_RULES.startingCredits, 50);
 });
 
 test('plain pawn move costs 1', () => {
